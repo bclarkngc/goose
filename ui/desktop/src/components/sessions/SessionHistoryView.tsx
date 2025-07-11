@@ -106,6 +106,7 @@ const SessionMessages: React.FC<{
                     <UserMessage 
                       key={message.id} 
                       message={message} 
+                      messages={messages}
                       onRestore={() => {
                         // No-op for session history view (read-only)
                         console.log('Restore not available in session history view');

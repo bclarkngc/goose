@@ -277,6 +277,7 @@ function BaseChatContent({
               ) : (
                 <UserMessage 
                   message={message} 
+                  messages={messages}
                   onRestore={(files) => {
                     // Handle file restoration by calling the diff API
                     files.forEach(async (file) => {

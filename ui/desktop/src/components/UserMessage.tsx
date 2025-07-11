@@ -11,10 +11,11 @@ import { formatMessageTimestamp } from '../utils/timeUtils';
 
 interface UserMessageProps {
   message: Message;
+  messages?: Message[]; // Optional for backward compatibility
   onRestore: (files: { path: string; checkpoint: string; timestamp: string }[]) => void;
 }
 
-export default function UserMessage({ message, onRestore }: UserMessageProps) {
+export default function UserMessage({ message, messages, onRestore }: UserMessageProps) {
   const contentRef = useRef<HTMLDivElement>(null);
 
   // Extract text content from the message
@@ -59,7 +60,7 @@ export default function UserMessage({ message, onRestore }: UserMessageProps) {
               {timestamp}
             </div>
             <div className="absolute right-0 pt-1 flex gap-2">
-              <MessageRestoreLink message={message} onRestore={onRestore} />
+              <MessageRestoreLink message={message} messages={messages} onRestore={onRestore} />
               <MessageCopyLink text={displayText} contentRef={contentRef} />
             </div>
           </div>

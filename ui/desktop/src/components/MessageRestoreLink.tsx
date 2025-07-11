@@ -1,9 +1,9 @@
 import { Message, ResourceContent, ToolResponseMessageContent } from '../types/message';
 import { History } from './icons';
-import { useChatMessages } from '../hooks/useChatMessages';
 
 interface MessageRestoreLinkProps {
   message: Message;
+  messages?: Message[]; // Optional for backward compatibility
   onRestore: (files: { path: string; checkpoint: string; timestamp: string }[]) => void;
 }
 
@@ -13,10 +13,14 @@ interface CheckpointPayload {
   timestamp: string;
 }
 
-export default function MessageRestoreLink({ message, onRestore }: MessageRestoreLinkProps) {
-  const { messages } = useChatMessages();
-
+export default function MessageRestoreLink({ message, messages, onRestore }: MessageRestoreLinkProps) {
   const handleRestoreClick = () => {
+    // Early return if no messages provided
+    if (!messages) {
+      console.log('No messages available for restore operation');
+      return;
+    }
+
     // Find all checkpoint payloads after this message
     const messageIndex = messages.findIndex((m) => m.id === message.id);
     if (messageIndex === -1) {
