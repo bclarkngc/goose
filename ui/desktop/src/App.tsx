@@ -22,6 +22,9 @@ import SessionsView from './components/sessions/SessionsView';
 import SharedSessionView from './components/sessions/SharedSessionView';
 import SchedulesView from './components/schedule/SchedulesView';
 import ProviderSettings from './components/settings/providers/ProviderSettingsPage';
+import RecipeEditor from './components/RecipeEditor';
+import RecipesView from './components/RecipesView';
+import DiffViewer from './components/DiffViewer';
 import { useChat } from './hooks/useChat';
 import { AppLayout } from './components/Layout/AppLayout';
 import { ChatProvider } from './contexts/ChatContext';
@@ -62,7 +65,8 @@ export type View =
   | 'loading'
   | 'recipeEditor'
   | 'recipes'
-  | 'permission';
+  | 'permission'
+  | 'diffViewer';
 // | 'projects';
 
 export type ViewOptions = {
@@ -693,6 +697,9 @@ export default function App() {
         console.log('Setting view to recipeEditor with config:', recipeConfig);
         // Handle recipe editor deep link
         window.history.replaceState({ config: recipeConfig }, '', '/recipe-editor');
+      } else if (viewType === 'diffViewer' && window.appConfig.get('diffContent')) {
+        console.log('Setting view to diffViewer with diff content');
+        setView('diffViewer', { diffContent: window.appConfig.get('diffContent') });
       } else {
         // Handle other deep links by redirecting to appropriate route
         const routeMap: Record<string, string> = {
@@ -989,6 +996,12 @@ export default function App() {
           '',
           `/recipe-editor?${new URLSearchParams(initialViewOptions).toString()}`
         );
+      } else if (viewFromUrl === 'diffViewer') {
+        const initialViewOptions = {
+          diffContent: windowConfig?.diffContent,
+          view: viewFromUrl,
+        };
+        setView(viewFromUrl, initialViewOptions);
       } else {
         window.history.replaceState({}, '', `/${viewFromUrl}`);
       }
@@ -997,6 +1010,26 @@ export default function App() {
     return () => window.electron.off('set-view', handleSetView);
   }, []);
 
+<<<<<<< HEAD
+||||||| parent of 6b8cf9b8f1 (Implement Diff UI)
+  useEffect(() => {
+    console.log(`View changed to: ${view}`);
+    if (view !== 'chat' && view !== 'recipeEditor') {
+      console.log('Not in chat view, clearing loading session state');
+      setIsLoadingSession(false);
+    }
+  }, [view]);
+
+=======
+  useEffect(() => {
+    console.log(`View changed to: ${view}`);
+    if (view !== 'chat' && view !== 'recipeEditor' && view !== 'diffViewer') {
+      console.log('Not in chat view, clearing loading session state');
+      setIsLoadingSession(false);
+    }
+  }, [view]);
+
+>>>>>>> 6b8cf9b8f1 (Implement Diff UI)
   const config = window.electron.getConfig();
   const STRICT_ALLOWLIST = config.GOOSE_ALLOWLIST_WARNING === true ? false : true;
 
