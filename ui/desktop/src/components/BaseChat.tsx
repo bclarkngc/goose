@@ -53,6 +53,7 @@ import LoadingGoose from './LoadingGoose';
 import Splash from './Splash';
 import { SessionSummaryModal } from './context_management/SessionSummaryModal';
 import RestoreModal from './RestoreModal';
+import { SidecarProvider } from './SidecarLayout';
 import {
   ChatContextManagerProvider,
   useChatContextManager,
@@ -490,7 +491,9 @@ function BaseChatContent({
 export default function BaseChat(props: BaseChatProps) {
   return (
     <ChatContextManagerProvider>
-      <BaseChatContent {...props} />
+      <SidecarProvider>
+        <BaseChatContent {...props} />
+      </SidecarProvider>
     </ChatContextManagerProvider>
   );
 }
