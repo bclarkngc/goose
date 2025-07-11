@@ -93,9 +93,9 @@ function MonacoDiffViewer({ diffContent, fileName }: { diffContent: string; file
     const getLineStyle = () => {
       switch (line.type) {
         case 'removed':
-          return 'bg-red-900/30 border-l-2 border-red-500';
+          return 'bg-red-500/10 border-l-2 border-red-500';
         case 'added':
-          return 'bg-green-900/30 border-l-2 border-green-500';
+          return 'bg-green-500/10 border-l-2 border-green-500';
         case 'context':
         default:
           return 'bg-transparent';
@@ -105,12 +105,12 @@ function MonacoDiffViewer({ diffContent, fileName }: { diffContent: string; file
     const getTextColor = () => {
       switch (line.type) {
         case 'removed':
-          return 'text-red-300';
+          return 'text-red-400';
         case 'added':
-          return 'text-green-300';
+          return 'text-green-400';
         case 'context':
         default:
-          return 'text-gray-300';
+          return 'text-textStandard';
       }
     };
 
@@ -128,10 +128,10 @@ function MonacoDiffViewer({ diffContent, fileName }: { diffContent: string; file
 
     return (
       <div key={`${side}-${line.lineNumber}`} className={`flex font-mono text-sm ${getLineStyle()}`}>
-        <div className="w-12 text-gray-500 text-right pr-2 py-1 select-none flex-shrink-0">
+        <div className="w-12 text-textSubtle text-right pr-2 py-1 select-none flex-shrink-0">
           {line.lineNumber}
         </div>
-        <div className="w-4 text-gray-500 text-center py-1 select-none flex-shrink-0">
+        <div className="w-4 text-textSubtle text-center py-1 select-none flex-shrink-0">
           {getLinePrefix()}
         </div>
         <div className={`flex-1 py-1 pr-4 ${getTextColor()}`}>
@@ -145,9 +145,9 @@ function MonacoDiffViewer({ diffContent, fileName }: { diffContent: string; file
     const getLineStyle = () => {
       switch (line.type) {
         case 'removed':
-          return 'bg-red-900/30 border-l-2 border-red-500';
+          return 'bg-red-500/10 border-l-2 border-red-500';
         case 'added':
-          return 'bg-green-900/30 border-l-2 border-green-500';
+          return 'bg-green-500/10 border-l-2 border-green-500';
         case 'context':
         default:
           return 'bg-transparent';
@@ -157,12 +157,12 @@ function MonacoDiffViewer({ diffContent, fileName }: { diffContent: string; file
     const getTextColor = () => {
       switch (line.type) {
         case 'removed':
-          return 'text-red-300';
+          return 'text-red-400';
         case 'added':
-          return 'text-green-300';
+          return 'text-green-400';
         case 'context':
         default:
-          return 'text-gray-300';
+          return 'text-textStandard';
       }
     };
 
@@ -180,13 +180,13 @@ function MonacoDiffViewer({ diffContent, fileName }: { diffContent: string; file
 
     return (
       <div key={`unified-${index}`} className={`flex font-mono text-sm ${getLineStyle()}`}>
-        <div className="w-12 text-gray-500 text-right pr-1 py-1 select-none flex-shrink-0">
+        <div className="w-12 text-textSubtle text-right pr-1 py-1 select-none flex-shrink-0">
           {line.beforeLineNumber || ''}
         </div>
-        <div className="w-12 text-gray-500 text-right pr-2 py-1 select-none flex-shrink-0">
+        <div className="w-12 text-textSubtle text-right pr-2 py-1 select-none flex-shrink-0">
           {line.afterLineNumber || ''}
         </div>
-        <div className="w-4 text-gray-500 text-center py-1 select-none flex-shrink-0">
+        <div className="w-4 text-textSubtle text-center py-1 select-none flex-shrink-0">
           {getLinePrefix()}
         </div>
         <div className={`flex-1 py-1 pr-4 ${getTextColor()}`}>
@@ -197,24 +197,24 @@ function MonacoDiffViewer({ diffContent, fileName }: { diffContent: string; file
   };
 
   return (
-    <div className="h-full flex flex-col bg-[#1E1E1E]">
+    <div className="h-full flex flex-col bg-background-default">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-[#232323]">
+      <div className="flex items-center justify-between p-4 border-b border-borderSubtle">
         <div className="flex items-center space-x-2">
-          <GitBranch size={16} className="text-blue-400" />
-          <span className="text-white font-medium">{fileName}</span>
+          <GitBranch size={16} className="text-primary" />
+          <span className="text-textStandard font-medium">{fileName}</span>
         </div>
         
         {/* View Mode Toggle */}
-        <div className="flex items-center space-x-1 bg-[#2A2A2A] rounded-md p-1">
+        <div className="flex items-center space-x-1 bg-background-muted rounded-md p-1">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setViewMode('split')}
             className={`px-3 py-1 text-xs ${
               viewMode === 'split' 
-                ? 'bg-[#404040] text-white' 
-                : 'text-gray-400 hover:text-white hover:bg-[#353535]'
+                ? 'bg-background-subtle text-textStandard' 
+                : 'text-textSubtle hover:text-textStandard hover:bg-background-subtle'
             }`}
           >
             Split
@@ -225,8 +225,8 @@ function MonacoDiffViewer({ diffContent, fileName }: { diffContent: string; file
             onClick={() => setViewMode('unified')}
             className={`px-3 py-1 text-xs ${
               viewMode === 'unified' 
-                ? 'bg-[#404040] text-white' 
-                : 'text-gray-400 hover:text-white hover:bg-[#353535]'
+                ? 'bg-background-subtle text-textStandard' 
+                : 'text-textSubtle hover:text-textStandard hover:bg-background-subtle'
             }`}
           >
             Unified
@@ -239,8 +239,8 @@ function MonacoDiffViewer({ diffContent, fileName }: { diffContent: string; file
         /* Split Diff Content */
         <div className="flex-1 overflow-hidden flex">
           {/* Before (Left Side) */}
-          <div className="flex-1 border-r border-[#232323]">
-            <div className="bg-[#2D1B1B] text-red-300 px-4 py-2 text-sm font-medium border-b border-[#232323]">
+          <div className="flex-1 border-r border-borderSubtle">
+            <div className="bg-background-muted text-textStandard px-4 py-2 text-sm font-medium border-b border-borderSubtle">
               Before
             </div>
             <div className="h-[calc(100%-40px)] overflow-auto">
@@ -250,7 +250,7 @@ function MonacoDiffViewer({ diffContent, fileName }: { diffContent: string; file
 
           {/* After (Right Side) */}
           <div className="flex-1">
-            <div className="bg-[#1B2D1B] text-green-300 px-4 py-2 text-sm font-medium border-b border-[#232323]">
+            <div className="bg-background-muted text-textStandard px-4 py-2 text-sm font-medium border-b border-borderSubtle">
               After
             </div>
             <div className="h-[calc(100%-40px)] overflow-auto">
@@ -327,18 +327,18 @@ export function SidecarProvider({ children }: SidecarProviderProps) {
 
         {/* Sidecar Panel - Only visible when there's an active view */}
         {activeView && currentView && (
-          <div className="fixed right-0 top-0 h-full w-[700px] bg-[#1E1E1E] border-l border-[#232323] z-20 transition-transform duration-300">
+          <div className="fixed right-0 top-0 h-full w-[700px] bg-background-default border-l border-borderSubtle z-20 transition-transform duration-300">
             {/* Sidecar Header */}
-            <div className="flex items-center justify-between p-4 border-b border-[#232323]">
+            <div className="flex items-center justify-between p-4 border-b border-borderSubtle">
               <div className="flex items-center space-x-2">
                 {currentView.icon}
-                <span className="text-white font-medium">{currentView.title}</span>
+                <span className="text-textStandard font-medium">{currentView.title}</span>
               </div>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={hideView}
-                className="text-gray-400 hover:text-white"
+                className="text-textSubtle hover:text-textStandard"
               >
                 <X size={16} />
               </Button>

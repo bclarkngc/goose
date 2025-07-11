@@ -189,7 +189,7 @@ export default function Pair({
         onMessageStreamFinish={handleMessageStreamFinish}
         renderBeforeMessages={renderBeforeMessages}
         customChatInputProps={customChatInputProps}
-        contentClassName="pl-6 px-4 pb-16 pt-2" // Add Pair-specific padding
+        contentClassName="pl-6 pl-4 pb-16 pt-2" // Add Pair-specific padding
       />
 
       {/* Recipe Parameter Modal */}
