@@ -20,7 +20,8 @@ import {
 import ToolCallConfirmation from './ToolCallConfirmation';
 import MessageCopyLink from './MessageCopyLink';
 import { NotificationEvent } from '../hooks/useMessageStream';
-import { FileDiff } from 'lucide-react';
+import { GitBranch } from 'lucide-react';
+import { useSidecar } from './SidecarLayout';
 
 // Reusable side panel button component
 interface SidePanelButtonProps {
@@ -72,6 +73,9 @@ export default function GooseMessage({
   appendMessage,
 }: GooseMessageProps) {
   const contentRef = useRef<HTMLDivElement>(null);
+  
+  // Get sidecar context (optional)
+  const sidecar = useSidecar();
 
   // Extract text content from the message
   let textContent = getTextContent(message);
@@ -234,20 +238,24 @@ export default function GooseMessage({
             })}
             
             {/* Diff button positioned at the right edge of the message area, aligned with user responses */}
-            {toolRequests.some((toolRequest) => hasDiffContent(toolResponsesMap.get(toolRequest.id))) && (
+            {toolRequests.some((toolRequest) => hasDiffContent(toolResponsesMap.get(toolRequest.id))) && sidecar && (
               <SidePanelButton
-                icon={<FileDiff size={16} className="text-textSubtle hover:text-textStandard transition-colors duration-200" />}
-                tooltip="Show/Hide Diff"
+                icon={<GitBranch size={16} className="text-textSubtle hover:text-textStandard transition-colors duration-200" />}
+                tooltip="Show Diff"
                 onClick={() => {
-                  // Find the first tool request with diff content and toggle its diff
+                  // Find the first tool request with diff content and show its diff
                   const toolRequestWithDiff = toolRequests.find((toolRequest) => 
                     hasDiffContent(toolResponsesMap.get(toolRequest.id))
                   );
                   if (toolRequestWithDiff) {
                     const diffContent = extractDiffContent(toolResponsesMap.get(toolRequestWithDiff.id));
                     if (diffContent) {
-                      window.pendingDiffContent = diffContent;
-                      window.dispatchEvent(new CustomEvent('toggle-diff-viewer'));
+                      // Extract filename from tool arguments if available
+                      const toolCall = toolRequestWithDiff.toolCall.status === 'success' ? toolRequestWithDiff.toolCall.value : null;
+                      const args = toolCall?.arguments as Record<string, any>;
+                      const fileName = args?.path ? String(args.path) : 'File';
+                      
+                      sidecar.showDiffViewer(diffContent, fileName);
                     }
                   }
                 }}

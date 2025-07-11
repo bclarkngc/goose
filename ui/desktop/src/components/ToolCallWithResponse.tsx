@@ -11,7 +11,6 @@ import {
 import { snakeToTitleCase } from '../utils';
 import Dot, { LoadingStatus } from './ui/Dot';
 import { NotificationEvent } from '../hooks/useMessageStream';
-import { useSidecar } from './SidecarLayout';
 
 // Extend the Window interface to include our custom property
 declare global {
@@ -152,22 +151,6 @@ function ToolCallView({
         return true;
     }
   })();
-
-  // Get sidecar context (optional)
-  const sidecar = useSidecar();
-
-  // Check for diff content
-  const diffContent = extractDiffContent(toolResponse);
-  const hasDiff = hasDiffContent(toolResponse);
-
-  // Auto-show diff viewer when diff content is available (only if sidecar is available)
-  useEffect(() => {
-    if (hasDiff && diffContent && sidecar) {
-      const args = toolCall.arguments as Record<string, ToolCallArgumentValue>;
-      const fileName = args.path ? String(args.path) : 'File';
-      sidecar.showDiffViewer(diffContent, fileName);
-    }
-  }, [hasDiff, diffContent, toolCall.arguments, sidecar]);
 
   const isToolDetails = Object.entries(toolCall?.arguments).length > 0;
   const loadingStatus: LoadingStatus = !toolResponse?.toolResult.status
