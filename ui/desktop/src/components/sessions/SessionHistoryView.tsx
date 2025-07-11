@@ -103,7 +103,14 @@ const SessionMessages: React.FC<{
                   }
 
                   return message.role === 'user' ? (
-                    <UserMessage key={message.id} message={message} />
+                    <UserMessage 
+                      key={message.id} 
+                      message={message} 
+                      onRestore={() => {
+                        // No-op for session history view (read-only)
+                        console.log('Restore not available in session history view');
+                      }}
+                    />
                   ) : (
                     <GooseMessage
                       key={message.id}

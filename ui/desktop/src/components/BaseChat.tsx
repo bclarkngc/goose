@@ -275,7 +275,32 @@ function BaseChatContent({
                   contextType={getContextHandlerType(message)}
                 />
               ) : (
-                <UserMessage message={message} />
+                <UserMessage 
+                  message={message} 
+                  onRestore={(files) => {
+                    // Handle file restoration by calling the diff API
+                    files.forEach(async (file) => {
+                      try {
+                        const response = await fetch('/api/diff/restore', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            path: file.path,
+                            checkpoint: file.checkpoint,
+                          }),
+                        });
+                        
+                        if (response.ok) {
+                          console.log(`Successfully restored ${file.path} to checkpoint ${file.checkpoint}`);
+                        } else {
+                          console.error(`Failed to restore ${file.path}:`, await response.text());
+                        }
+                      } catch (error) {
+                        console.error(`Error restoring ${file.path}:`, error);
+                      }
+                    });
+                  }}
+                />
               )}
             </>
           ) : (

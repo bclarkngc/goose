@@ -24,7 +24,6 @@ import SchedulesView from './components/schedule/SchedulesView';
 import ProviderSettings from './components/settings/providers/ProviderSettingsPage';
 import RecipeEditor from './components/RecipeEditor';
 import RecipesView from './components/RecipesView';
-import DiffViewer from './components/DiffViewer';
 import DiffSidePanel from './components/DiffSidePanel';
 import { useChat } from './hooks/useChat';
 import { AppLayout } from './components/Layout/AppLayout';
@@ -47,8 +46,6 @@ import PermissionSettingsView from './components/settings/permission/PermissionS
 import { type SessionDetails } from './sessions';
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
 // import ProjectsContainer from './components/projects/ProjectsContainer';
-import RecipesView from './components/RecipesView';
-import RecipeEditor from './components/RecipeEditor';
 
 export type View =
   | 'welcome'
@@ -1238,8 +1235,8 @@ export default function App() {
                   <ChatProvider chat={chat} setChat={setChat}>
                     <AppLayout setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
                   </ChatProvider>
-              }
-            >
+                }
+              >
               <Route
                 index
                 element={
@@ -1348,6 +1345,7 @@ export default function App() {
             </Route>
           </Routes>
         </div>
+      </div>
 
         {/* Diff Side Panel */}
         <DiffSidePanel
