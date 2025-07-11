@@ -23,34 +23,6 @@ import { NotificationEvent } from '../hooks/useMessageStream';
 import { GitBranch } from 'lucide-react';
 import { useSidecar } from './SidecarLayout';
 
-// Reusable side panel button component
-interface SidePanelButtonProps {
-  icon: React.ReactNode;
-  tooltip: string;
-  onClick: () => void;
-  className?: string;
-}
-
-function SidePanelButton({ icon, tooltip, onClick, className = '' }: SidePanelButtonProps) {
-  return (
-    <div className={`absolute top-1 -right-12 ${className}`}>
-      <div className="relative group">
-        <button
-          onClick={onClick}
-          className="p-1 hover:bg-bgStandard rounded transition-all duration-200 ease-in-out flex items-center transform hover:scale-105"
-          title={tooltip}
-        >
-          {icon}
-        </button>
-        {/* Tooltip */}
-        <div className="absolute right-0 top-full mt-1 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none whitespace-nowrap z-10">
-          {tooltip}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 interface GooseMessageProps {
   // messages up to this index are presumed to be "history" from a resumed session, this is used to track older tool confirmation requests
   // anything before this index should not render any buttons, but anything after should
@@ -167,8 +139,54 @@ export default function GooseMessage({
     appendMessage,
   ]);
 
+  // Register diff actions with the sidecar
+  useEffect(() => {
+    if (!sidecar || toolRequests.length === 0) return;
+
+    // Check if any tool requests have diff content
+    const toolRequestsWithDiff = toolRequests.filter((toolRequest) => 
+      hasDiffContent(toolResponsesMap.get(toolRequest.id))
+    );
+
+    if (toolRequestsWithDiff.length > 0) {
+      // Register an action for this message's diff content
+      const action = {
+        id: `diff-${message.id}`,
+        icon: <GitBranch size={16} />,
+        label: `View diff`,
+        messageId: message.id,
+        onClick: () => {
+          // Find the first tool request with diff content and show its diff
+          const toolRequestWithDiff = toolRequestsWithDiff[0];
+          const diffContent = extractDiffContent(toolResponsesMap.get(toolRequestWithDiff.id));
+          if (diffContent) {
+            // Extract filename from tool arguments if available
+            const toolCall = toolRequestWithDiff.toolCall.status === 'success' ? toolRequestWithDiff.toolCall.value : null;
+            const args = toolCall?.arguments as Record<string, any>;
+            const fileName = args?.path ? String(args.path) : 'File';
+            
+            sidecar.showDiffViewer(diffContent, fileName);
+          }
+        }
+      };
+
+      sidecar.addAction(action);
+
+      // Cleanup when component unmounts or dependencies change
+      return () => {
+        sidecar.removeAction(action.id);
+      };
+    }
+
+    // Return undefined if no actions to register
+    return undefined;
+  }, [sidecar, message.id, toolRequests, toolResponsesMap]);
+
   return (
-    <div className="goose-message flex w-[90%] justify-start opacity-0 animate-[appear_150ms_ease-in_forwards]">
+    <div 
+      className="goose-message flex w-[90%] justify-start opacity-0 animate-[appear_150ms_ease-in_forwards]"
+      data-message-id={message.id}
+    >
       <div className="flex flex-col w-full">
         {/* Chain-of-Thought (hidden by default) */}
         {cotText && (
@@ -236,31 +254,6 @@ export default function GooseMessage({
                 </div>
               );
             })}
-            
-            {/* Diff button positioned at the right edge of the message area, aligned with user responses */}
-            {toolRequests.some((toolRequest) => hasDiffContent(toolResponsesMap.get(toolRequest.id))) && sidecar && (
-              <SidePanelButton
-                icon={<GitBranch size={16} className="text-textSubtle hover:text-textStandard transition-colors duration-200" />}
-                tooltip="Show Diff"
-                onClick={() => {
-                  // Find the first tool request with diff content and show its diff
-                  const toolRequestWithDiff = toolRequests.find((toolRequest) => 
-                    hasDiffContent(toolResponsesMap.get(toolRequest.id))
-                  );
-                  if (toolRequestWithDiff) {
-                    const diffContent = extractDiffContent(toolResponsesMap.get(toolRequestWithDiff.id));
-                    if (diffContent) {
-                      // Extract filename from tool arguments if available
-                      const toolCall = toolRequestWithDiff.toolCall.status === 'success' ? toolRequestWithDiff.toolCall.value : null;
-                      const args = toolCall?.arguments as Record<string, any>;
-                      const fileName = args?.path ? String(args.path) : 'File';
-                      
-                      sidecar.showDiffViewer(diffContent, fileName);
-                    }
-                  }
-                }}
-              />
-            )}
             
             <div className="text-xs text-textSubtle pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
               {timestamp}
