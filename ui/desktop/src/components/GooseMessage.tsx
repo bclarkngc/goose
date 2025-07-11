@@ -139,52 +139,14 @@ export default function GooseMessage({
     appendMessage,
   ]);
 
-  // Register diff actions with the sidecar
-  useEffect(() => {
-    if (!sidecar || toolRequests.length === 0) return;
-
-    // Check if any tool requests have diff content
-    const toolRequestsWithDiff = toolRequests.filter((toolRequest) => 
-      hasDiffContent(toolResponsesMap.get(toolRequest.id))
-    );
-
-    if (toolRequestsWithDiff.length > 0) {
-      // Register an action for this message's diff content
-      const action = {
-        id: `diff-${message.id}`,
-        icon: <GitBranch size={16} />,
-        label: `View diff`,
-        messageId: message.id,
-        onClick: () => {
-          // Find the first tool request with diff content and show its diff
-          const toolRequestWithDiff = toolRequestsWithDiff[0];
-          const diffContent = extractDiffContent(toolResponsesMap.get(toolRequestWithDiff.id));
-          if (diffContent) {
-            // Extract filename from tool arguments if available
-            const toolCall = toolRequestWithDiff.toolCall.status === 'success' ? toolRequestWithDiff.toolCall.value : null;
-            const args = toolCall?.arguments as Record<string, any>;
-            const fileName = args?.path ? String(args.path) : 'File';
-            
-            sidecar.showDiffViewer(diffContent, fileName);
-          }
-        }
-      };
-
-      sidecar.addAction(action);
-
-      // Cleanup when component unmounts or dependencies change
-      return () => {
-        sidecar.removeAction(action.id);
-      };
-    }
-
-    // Return undefined if no actions to register
-    return undefined;
-  }, [sidecar, message.id, toolRequests, toolResponsesMap]);
+  // Check if this message has diff content
+  const hasDiff = toolRequests.some((toolRequest) => 
+    hasDiffContent(toolResponsesMap.get(toolRequest.id))
+  );
 
   return (
     <div 
-      className="goose-message flex w-[90%] justify-start opacity-0 animate-[appear_150ms_ease-in_forwards]"
+      className="goose-message flex w-[90%] justify-start opacity-0 animate-[appear_150ms_ease-in_forwards] relative"
       data-message-id={message.id}
     >
       <div className="flex flex-col w-full">
@@ -274,6 +236,40 @@ export default function GooseMessage({
       {/* Render checkpoint actions if checkpoint content is present */}
       {checkpointContent && (
         <CheckpointActions checkpointContent={checkpointContent} />
+      )}
+
+      {/* Floating Diff Action Button - positioned over collapsed sidecar */}
+      {hasDiff && sidecar && !sidecar.activeView && (
+        <div className="absolute top-2 -right-20 z-50">
+          <button
+            onClick={() => {
+              // Find the first tool request with diff content and show its diff
+              const toolRequestWithDiff = toolRequests.find((toolRequest) => 
+                hasDiffContent(toolResponsesMap.get(toolRequest.id))
+              );
+              if (toolRequestWithDiff) {
+                const diffContent = extractDiffContent(toolResponsesMap.get(toolRequestWithDiff.id));
+                if (diffContent) {
+                  // Extract filename from tool arguments if available
+                  const toolCall = toolRequestWithDiff.toolCall.status === 'success' ? toolRequestWithDiff.toolCall.value : null;
+                  const args = toolCall?.arguments as Record<string, any>;
+                  const fileName = args?.path ? String(args.path) : 'File';
+                  
+                  sidecar.showDiffViewer(diffContent, fileName);
+                }
+              }
+            }}
+            className="p-2 bg-background-muted hover:bg-background-subtle border border-borderSubtle rounded-lg transition-all duration-200 hover:scale-105 group"
+            title="View diff"
+          >
+            <GitBranch size={16} className="text-textSubtle group-hover:text-primary transition-colors" />
+            
+            {/* Tooltip */}
+            <div className="absolute right-full mr-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-background-subtle border border-borderSubtle rounded text-xs text-textStandard opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+              View diff
+            </div>
+          </button>
+        </div>
       )}
 
       {/* TODO(alexhancock): Re-enable link previews once styled well again */}

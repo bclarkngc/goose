@@ -1,14 +1,6 @@
-import React, { useState, createContext, useContext, useEffect, useRef } from 'react';
+import React, { useState, createContext, useContext } from 'react';
 import { X, GitBranch } from 'lucide-react';
 import { Button } from './ui/button';
-
-interface SidecarAction {
-  id: string;
-  icon: React.ReactNode;
-  label: string;
-  onClick: () => void;
-  messageId?: string;
-}
 
 interface SidecarView {
   id: string;
@@ -20,12 +12,8 @@ interface SidecarView {
 interface SidecarContextType {
   activeView: string | null;
   views: SidecarView[];
-  actions: SidecarAction[];
-  activeMessageId: string | null;
   showView: (view: SidecarView) => void;
   hideView: () => void;
-  addAction: (action: SidecarAction) => void;
-  removeAction: (id: string) => void;
   showDiffViewer: (diffContent: string, fileName?: string) => void;
   hideDiffViewer: () => void;
 }
@@ -40,6 +28,7 @@ export const useSidecar = () => {
 
 interface SidecarProviderProps {
   children: React.ReactNode;
+  showSidecar?: boolean; // Control whether sidecar should be visible
 }
 
 // Monaco Editor Diff Component
@@ -282,58 +271,9 @@ function MonacoDiffViewer({ diffContent, fileName }: { diffContent: string; file
   );
 }
 
-export function SidecarProvider({ children }: SidecarProviderProps) {
+export function SidecarProvider({ children, showSidecar = true }: SidecarProviderProps) {
   const [activeView, setActiveView] = useState<string | null>(null);
   const [views, setViews] = useState<SidecarView[]>([]);
-  const [actions, setActions] = useState<SidecarAction[]>([]);
-  const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-
-  // Find the message closest to the middle of the viewport
-  useEffect(() => {
-    const handleScroll = () => {
-      if (!scrollContainerRef.current) return;
-
-      const container = scrollContainerRef.current;
-      const containerRect = container.getBoundingClientRect();
-      const viewportMiddle = containerRect.top + containerRect.height / 2;
-
-      let closestMessageId: string | null = null;
-      let closestDistance = Infinity;
-
-      // Find all message elements with data-message-id
-      const messageElements = container.querySelectorAll('[data-message-id]');
-      
-      messageElements.forEach((element) => {
-        const rect = element.getBoundingClientRect();
-        const elementMiddle = rect.top + rect.height / 2;
-        const distance = Math.abs(elementMiddle - viewportMiddle);
-        
-        if (distance < closestDistance) {
-          closestDistance = distance;
-          closestMessageId = element.getAttribute('data-message-id');
-        }
-      });
-
-      if (closestMessageId !== activeMessageId) {
-        setActiveMessageId(closestMessageId);
-      }
-    };
-
-    const container = scrollContainerRef.current;
-    if (container) {
-      container.addEventListener('scroll', handleScroll);
-      // Initial check
-      handleScroll();
-      
-      return () => {
-        container.removeEventListener('scroll', handleScroll);
-      };
-    }
-
-    // Return undefined if no container
-    return undefined;
-  }, [activeMessageId]);
 
   const showView = (view: SidecarView) => {
     setViews(prev => {
@@ -348,14 +288,6 @@ export function SidecarProvider({ children }: SidecarProviderProps) {
 
   const hideView = () => {
     setActiveView(null);
-  };
-
-  const addAction = (action: SidecarAction) => {
-    setActions(prev => [...prev.filter(a => a.id !== action.id), action]);
-  };
-
-  const removeAction = (id: string) => {
-    setActions(prev => prev.filter(a => a.id !== id));
   };
 
   const showDiffViewer = (content: string, fileName = 'File') => {
@@ -378,52 +310,34 @@ export function SidecarProvider({ children }: SidecarProviderProps) {
   const contextValue: SidecarContextType = {
     activeView,
     views,
-    actions,
-    activeMessageId,
     showView,
     hideView,
-    addAction,
-    removeAction,
     showDiffViewer,
     hideDiffViewer,
   };
 
   const currentView = views.find(v => v.id === activeView);
 
+  // Don't render sidecar if showSidecar is false
+  if (!showSidecar) {
+    return (
+      <SidecarContext.Provider value={contextValue}>
+        {children}
+      </SidecarContext.Provider>
+    );
+  }
+
   return (
     <SidecarContext.Provider value={contextValue}>
       <div className="flex h-full relative">
         {/* Main Content */}
-        <div 
-          ref={scrollContainerRef}
-          className={`flex-1 transition-all duration-300 ${activeView ? 'mr-[700px]' : 'mr-16'}`}
-        >
+        <div className={`flex-1 transition-all duration-300 ${activeView ? 'mr-[700px]' : 'mr-16'}`}>
           {children}
         </div>
 
         {/* Collapsed Sidecar Panel - Always visible when not expanded */}
         {!activeView && (
-          <div className="fixed top-0 right-0 h-full w-16 bg-background-default border-l border-borderSubtle z-40 flex flex-col items-center py-4 space-y-2">
-            {actions.map((action) => (
-              <button
-                key={action.id}
-                onClick={action.onClick}
-                className={`p-2 rounded-lg transition-all duration-200 group relative ${
-                  action.messageId === activeMessageId 
-                    ? 'bg-primary/20 text-primary shadow-lg scale-110' 
-                    : 'hover:bg-background-muted text-textSubtle hover:text-textStandard'
-                }`}
-                title={action.label}
-              >
-                {action.icon}
-                
-                {/* Tooltip */}
-                <div className="absolute right-full mr-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-background-subtle border border-borderSubtle rounded text-xs text-textStandard opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
-                  {action.label}
-                </div>
-              </button>
-            ))}
-          </div>
+          <div className="fixed top-0 right-0 h-full w-16 bg-background-default border-l border-borderSubtle z-40" />
         )}
 
         {/* Expanded Sidecar Panel - Only visible when there's an active view */}

@@ -1,6 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { IpcRendererEvent } from 'electron';
 import { HashRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+
+// Component to conditionally show sidecar based on route
+const ConditionalSidecarProvider = ({ children }: { children: React.ReactNode }) => {
+  const location = useLocation();
+  
+  // Only show sidecar on chat routes (index and pair)
+  const showSidecar = location.pathname === '/' || location.pathname === '/pair';
+  
+  return (
+    <SidecarProvider showSidecar={showSidecar}>
+      {children}
+    </SidecarProvider>
+  );
+};
 import { openSharedSessionFromDeepLink, type SessionLinksViewOptions } from './sessionLinks';
 import { type SharedSessionDetails } from './sharedSessions';
 import { initializeSystem } from './utils/providerUtils';
@@ -1178,9 +1192,9 @@ export default function App() {
               path="/"
               element={
                 <ChatProvider chat={chat} setChat={setChat}>
-                  <SidecarProvider>
+                  <ConditionalSidecarProvider>
                     <AppLayout setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
-                  </SidecarProvider>
+                  </ConditionalSidecarProvider>
                 </ChatProvider>
               }
             >
