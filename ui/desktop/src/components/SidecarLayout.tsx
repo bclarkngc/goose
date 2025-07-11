@@ -331,13 +331,13 @@ export function SidecarProvider({ children, showSidecar = true }: SidecarProvide
     <SidecarContext.Provider value={contextValue}>
       <div className="flex h-full relative">
         {/* Main Content */}
-        <div className={`flex-1 transition-all duration-300 ${activeView ? 'mr-[700px]' : 'mr-16'}`}>
+        <div className={`flex-1 transition-all duration-300 ${activeView ? 'mr-[700px]' : ''}`}>
           {children}
         </div>
 
-        {/* Collapsed Sidecar Panel - Always visible when not expanded */}
+        {/* Collapsed Sidecar Panel - Only visible when not expanded */}
         {!activeView && (
-          <div className="fixed top-0 right-0 h-full w-16 bg-background-default border-l border-borderSubtle z-40" />
+          <div className="fixed top-0 right-0 h-full w-16 bg-background-default border-l border-borderSubtle z-40 opacity-0 pointer-events-none" />
         )}
 
         {/* Expanded Sidecar Panel - Only visible when there's an active view */}

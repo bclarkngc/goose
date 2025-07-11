@@ -240,36 +240,42 @@ export default function GooseMessage({
 
       {/* Floating Diff Action Button - positioned over collapsed sidecar */}
       {hasDiff && sidecar && !sidecar.activeView && (
-        <div className="absolute top-2 -right-20 z-50">
-          <button
-            onClick={() => {
-              // Find the first tool request with diff content and show its diff
-              const toolRequestWithDiff = toolRequests.find((toolRequest) => 
-                hasDiffContent(toolResponsesMap.get(toolRequest.id))
-              );
-              if (toolRequestWithDiff) {
-                const diffContent = extractDiffContent(toolResponsesMap.get(toolRequestWithDiff.id));
-                if (diffContent) {
-                  // Extract filename from tool arguments if available
-                  const toolCall = toolRequestWithDiff.toolCall.status === 'success' ? toolRequestWithDiff.toolCall.value : null;
-                  const args = toolCall?.arguments as Record<string, any>;
-                  const fileName = args?.path ? String(args.path) : 'File';
-                  
-                  sidecar.showDiffViewer(diffContent, fileName);
+        <>
+          {/* Background panel for this action button */}
+          <div className="fixed top-0 right-0 h-full w-16 bg-background-default border-l border-borderSubtle z-30" />
+          
+          {/* Action button */}
+          <div className="absolute top-2 -right-20 z-50">
+            <button
+              onClick={() => {
+                // Find the first tool request with diff content and show its diff
+                const toolRequestWithDiff = toolRequests.find((toolRequest) => 
+                  hasDiffContent(toolResponsesMap.get(toolRequest.id))
+                );
+                if (toolRequestWithDiff) {
+                  const diffContent = extractDiffContent(toolResponsesMap.get(toolRequestWithDiff.id));
+                  if (diffContent) {
+                    // Extract filename from tool arguments if available
+                    const toolCall = toolRequestWithDiff.toolCall.status === 'success' ? toolRequestWithDiff.toolCall.value : null;
+                    const args = toolCall?.arguments as Record<string, any>;
+                    const fileName = args?.path ? String(args.path) : 'File';
+                    
+                    sidecar.showDiffViewer(diffContent, fileName);
+                  }
                 }
-              }
-            }}
-            className="p-2 bg-background-muted hover:bg-background-subtle border border-borderSubtle rounded-lg transition-all duration-200 hover:scale-105 group"
-            title="View diff"
-          >
-            <GitBranch size={16} className="text-textSubtle group-hover:text-primary transition-colors" />
-            
-            {/* Tooltip */}
-            <div className="absolute right-full mr-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-background-subtle border border-borderSubtle rounded text-xs text-textStandard opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-              View diff
-            </div>
-          </button>
-        </div>
+              }}
+              className="p-2 bg-background-muted hover:bg-background-subtle border border-borderSubtle rounded-lg transition-all duration-200 hover:scale-105 group"
+              title="View diff"
+            >
+              <GitBranch size={16} className="text-textSubtle group-hover:text-primary transition-colors" />
+              
+              {/* Tooltip */}
+              <div className="absolute right-full mr-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-background-subtle border border-borderSubtle rounded text-xs text-textStandard opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                View diff
+              </div>
+            </button>
+          </div>
+        </>
       )}
 
       {/* TODO(alexhancock): Re-enable link previews once styled well again */}

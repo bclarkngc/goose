@@ -2,12 +2,16 @@ import { useEffect, useRef, useState } from 'react';
 import { IpcRendererEvent } from 'electron';
 import { HashRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 
-// Component to conditionally show sidecar based on route
+// Component to conditionally show sidecar based on route and chat state
 const ConditionalSidecarProvider = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
   
-  // Only show sidecar on specific chat routes, not on welcome/onboarding pages
-  const showSidecar = location.pathname === '/' || location.pathname === '/pair';
+  // Only show sidecar on specific chat routes when there are messages
+  const isChatRoute = location.pathname === '/' || location.pathname === '/pair';
+  
+  // We'll pass the chat state check to the SidecarProvider
+  // The sidecar will only show the collapsed panel when there are messages with potential actions
+  const showSidecar = isChatRoute;
   
   return (
     <SidecarProvider showSidecar={showSidecar}>
