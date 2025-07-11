@@ -32,16 +32,19 @@ interface SidecarProviderProps {
 
 // Monaco Editor Diff Component
 function MonacoDiffViewer({ diffContent, fileName }: { diffContent: string; fileName: string }) {
+  const [viewMode, setViewMode] = useState<'split' | 'unified'>('split');
   const [parsedDiff, setParsedDiff] = useState<{
     beforeLines: Array<{ content: string; lineNumber: number; type: 'context' | 'removed' | 'added' }>;
     afterLines: Array<{ content: string; lineNumber: number; type: 'context' | 'removed' | 'added' }>;
-  }>({ beforeLines: [], afterLines: [] });
+    unifiedLines: Array<{ content: string; beforeLineNumber: number | null; afterLineNumber: number | null; type: 'context' | 'removed' | 'added' }>;
+  }>({ beforeLines: [], afterLines: [], unifiedLines: [] });
 
   React.useEffect(() => {
     // Parse unified diff format into before/after with line numbers
     const lines = diffContent.split('\n');
     const beforeLines: Array<{ content: string; lineNumber: number; type: 'context' | 'removed' | 'added' }> = [];
     const afterLines: Array<{ content: string; lineNumber: number; type: 'context' | 'removed' | 'added' }> = [];
+    const unifiedLines: Array<{ content: string; beforeLineNumber: number | null; afterLineNumber: number | null; type: 'context' | 'removed' | 'added' }> = [];
     
     let beforeLineNum = 1;
     let afterLineNum = 1;
@@ -64,23 +67,26 @@ function MonacoDiffViewer({ diffContent, fileName }: { diffContent: string; file
         // Removed line - only in before
         const content = line.substring(1);
         beforeLines.push({ content, lineNumber: beforeLineNum, type: 'removed' });
+        unifiedLines.push({ content, beforeLineNumber: beforeLineNum, afterLineNumber: null, type: 'removed' });
         beforeLineNum++;
       } else if (line.startsWith('+')) {
         // Added line - only in after
         const content = line.substring(1);
         afterLines.push({ content, lineNumber: afterLineNum, type: 'added' });
+        unifiedLines.push({ content, beforeLineNumber: null, afterLineNumber: afterLineNum, type: 'added' });
         afterLineNum++;
       } else if (line.startsWith(' ')) {
         // Context line - in both
         const content = line.substring(1);
         beforeLines.push({ content, lineNumber: beforeLineNum, type: 'context' });
         afterLines.push({ content, lineNumber: afterLineNum, type: 'context' });
+        unifiedLines.push({ content, beforeLineNumber: beforeLineNum, afterLineNumber: afterLineNum, type: 'context' });
         beforeLineNum++;
         afterLineNum++;
       }
     }
     
-    setParsedDiff({ beforeLines, afterLines });
+    setParsedDiff({ beforeLines, afterLines, unifiedLines });
   }, [diffContent]);
 
   const renderDiffLine = (line: { content: string; lineNumber: number; type: 'context' | 'removed' | 'added' }, side: 'before' | 'after') => {
@@ -135,6 +141,61 @@ function MonacoDiffViewer({ diffContent, fileName }: { diffContent: string; file
     );
   };
 
+  const renderUnifiedLine = (line: { content: string; beforeLineNumber: number | null; afterLineNumber: number | null; type: 'context' | 'removed' | 'added' }, index: number) => {
+    const getLineStyle = () => {
+      switch (line.type) {
+        case 'removed':
+          return 'bg-red-900/30 border-l-2 border-red-500';
+        case 'added':
+          return 'bg-green-900/30 border-l-2 border-green-500';
+        case 'context':
+        default:
+          return 'bg-transparent';
+      }
+    };
+
+    const getTextColor = () => {
+      switch (line.type) {
+        case 'removed':
+          return 'text-red-300';
+        case 'added':
+          return 'text-green-300';
+        case 'context':
+        default:
+          return 'text-gray-300';
+      }
+    };
+
+    const getLinePrefix = () => {
+      switch (line.type) {
+        case 'removed':
+          return '-';
+        case 'added':
+          return '+';
+        case 'context':
+        default:
+          return ' ';
+      }
+    };
+
+    return (
+      <div key={`unified-${index}`} className={`flex font-mono text-sm ${getLineStyle()}`}>
+        <div className="w-12 text-gray-500 text-right pr-1 py-1 select-none flex-shrink-0">
+          {line.beforeLineNumber || ''}
+        </div>
+        <div className="w-12 text-gray-500 text-right pr-2 py-1 select-none flex-shrink-0">
+          {line.afterLineNumber || ''}
+        </div>
+        <div className="w-4 text-gray-500 text-center py-1 select-none flex-shrink-0">
+          {getLinePrefix()}
+        </div>
+        <div className={`flex-1 py-1 pr-4 ${getTextColor()}`}>
+          <code>{line.content || ' '}</code>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="h-full flex flex-col bg-[#1E1E1E]">
       {/* Header */}
@@ -143,30 +204,68 @@ function MonacoDiffViewer({ diffContent, fileName }: { diffContent: string; file
           <GitBranch size={16} className="text-blue-400" />
           <span className="text-white font-medium">{fileName}</span>
         </div>
+        
+        {/* View Mode Toggle */}
+        <div className="flex items-center space-x-1 bg-[#2A2A2A] rounded-md p-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setViewMode('split')}
+            className={`px-3 py-1 text-xs ${
+              viewMode === 'split' 
+                ? 'bg-[#404040] text-white' 
+                : 'text-gray-400 hover:text-white hover:bg-[#353535]'
+            }`}
+          >
+            Split
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setViewMode('unified')}
+            className={`px-3 py-1 text-xs ${
+              viewMode === 'unified' 
+                ? 'bg-[#404040] text-white' 
+                : 'text-gray-400 hover:text-white hover:bg-[#353535]'
+            }`}
+          >
+            Unified
+          </Button>
+        </div>
       </div>
 
-      {/* Split Diff Content */}
-      <div className="flex-1 overflow-hidden flex">
-        {/* Before (Left Side) */}
-        <div className="flex-1 border-r border-[#232323]">
-          <div className="bg-[#2D1B1B] text-red-300 px-4 py-2 text-sm font-medium border-b border-[#232323]">
-            Before
+      {/* Diff Content */}
+      {viewMode === 'split' ? (
+        /* Split Diff Content */
+        <div className="flex-1 overflow-hidden flex">
+          {/* Before (Left Side) */}
+          <div className="flex-1 border-r border-[#232323]">
+            <div className="bg-[#2D1B1B] text-red-300 px-4 py-2 text-sm font-medium border-b border-[#232323]">
+              Before
+            </div>
+            <div className="h-[calc(100%-40px)] overflow-auto">
+              {parsedDiff.beforeLines.map((line) => renderDiffLine(line, 'before'))}
+            </div>
           </div>
-          <div className="h-[calc(100%-40px)] overflow-auto">
-            {parsedDiff.beforeLines.map((line) => renderDiffLine(line, 'before'))}
-          </div>
-        </div>
 
-        {/* After (Right Side) */}
-        <div className="flex-1">
-          <div className="bg-[#1B2D1B] text-green-300 px-4 py-2 text-sm font-medium border-b border-[#232323]">
-            After
-          </div>
-          <div className="h-[calc(100%-40px)] overflow-auto">
-            {parsedDiff.afterLines.map((line) => renderDiffLine(line, 'after'))}
+          {/* After (Right Side) */}
+          <div className="flex-1">
+            <div className="bg-[#1B2D1B] text-green-300 px-4 py-2 text-sm font-medium border-b border-[#232323]">
+              After
+            </div>
+            <div className="h-[calc(100%-40px)] overflow-auto">
+              {parsedDiff.afterLines.map((line) => renderDiffLine(line, 'after'))}
+            </div>
           </div>
         </div>
-      </div>
+      ) : (
+        /* Unified Diff Content */
+        <div className="flex-1 overflow-hidden">
+          <div className="h-full overflow-auto">
+            {parsedDiff.unifiedLines.map((line, index) => renderUnifiedLine(line, index))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
