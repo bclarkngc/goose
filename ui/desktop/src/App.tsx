@@ -1017,7 +1017,7 @@ export default function App() {
   }, []);
 
   // Remove the old view-based useEffect since we're using React Router now
-  
+
   const config = window.electron.getConfig();
   const STRICT_ALLOWLIST = config.GOOSE_ALLOWLIST_WARNING === true ? false : true;
 
@@ -1129,6 +1129,15 @@ export default function App() {
       const currentDiffContent = window.pendingDiffContent;
       const diffContentMatches = currentDiffContent === diffSidePanelContent;
 
+      console.log('Toggle diff viewer:', {
+        isDiffSidePanelOpen,
+        currentDiffContent: currentDiffContent ? `${currentDiffContent.length} characters` : 'null',
+        diffContentMatches,
+        diffSidePanelContent: diffSidePanelContent
+          ? `${diffSidePanelContent.length} characters`
+          : 'empty',
+      });
+
       setDiffSidePanelContent(currentDiffContent || '');
 
       try {
@@ -1237,115 +1246,114 @@ export default function App() {
                   </ChatProvider>
                 }
               >
-              <Route
-                index
-                element={
-                  <ProviderGuard>
-                    <HubRouteWrapper
-                      chat={chat}
-                      setChat={setChat}
-                      setPairChat={setPairChat}
-                      setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-                    />
-                  </ProviderGuard>
-                }
-              />
-              <Route
-                path="pair"
-                element={
-                  <ProviderGuard>
-                    <ChatProvider chat={pairChat} setChat={setPairChat}>
-                      <PairRouteWrapper
-                        chat={pairChat}
-                        setChat={setPairChat}
-                        setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+                <Route
+                  index
+                  element={
+                    <ProviderGuard>
+                      <HubRouteWrapper
+                        chat={chat}
+                        setChat={setChat}
+                        setPairChat={setPairChat}setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
                       />
-                    </ChatProvider>
-                  </ProviderGuard>
-                }
-              />
-              <Route
-                path="settings"
-                element={
-                  <ProviderGuard>
-                    <SettingsRoute />
-                  </ProviderGuard>
-                }
-              />
-              <Route
-                path="extensions"
-                element={
-                  <ProviderGuard>
-                    <ExtensionsRoute />
-                  </ProviderGuard>
-                }
-              />
-              <Route
-                path="sessions"
-                element={
-                  <ProviderGuard>
-                    <SessionsRoute />
-                  </ProviderGuard>
-                }
-              />
-              <Route
-                path="schedules"
-                element={
-                  <ProviderGuard>
-                    <SchedulesRoute />
-                  </ProviderGuard>
-                }
-              />
-              <Route
-                path="recipes"
-                element={
-                  <ProviderGuard>
-                    <RecipesRoute />
-                  </ProviderGuard>
-                }
-              />
-              <Route
-                path="recipe-editor"
-                element={
-                  <ProviderGuard>
-                    <RecipeEditorRoute />
-                  </ProviderGuard>
-                }
-              />
-              <Route
-                path="shared-session"
-                element={
-                  <ProviderGuard>
-                    <SharedSessionRouteWrapper
-                      isLoadingSharedSession={isLoadingSharedSession}
-                      setIsLoadingSharedSession={setIsLoadingSharedSession}
-                      sharedSessionError={sharedSessionError}
-                    />
-                  </ProviderGuard>
-                }
-              />
-              <Route
-                path="permission"
-                element={
-                  <ProviderGuard>
-                    <PermissionRoute />
-                  </ProviderGuard>
-                }
-              />
-              {/*<Route*/}
-              {/*  path="projects"*/}
-              {/*  element={*/}
-              {/*    <ProviderGuard>*/}
-              {/*      <ChatProvider chat={chat} setChat={setChat}>*/}
-              {/*        <ProjectsRoute />*/}
-              {/*      </ChatProvider>*/}
-              {/*    </ProviderGuard>  */}
-              {/*  }*/}
-              {/*/>*/}
-            </Route>
-          </Routes>
+                    </ProviderGuard>
+                  }
+                />
+                <Route
+                  path="pair"
+                  element={
+                    <ProviderGuard>
+                      <ChatProvider chat={pairChat} setChat={setPairChat}>
+                        <PairRouteWrapper
+                          chat={pairChat}
+                          setChat={setPairChat}
+                          setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+                        />
+                      </ChatProvider>
+                    </ProviderGuard>
+                  }
+                />
+                <Route
+                  path="settings"
+                  element={
+                    <ProviderGuard>
+                      <SettingsRoute />
+                    </ProviderGuard>
+                  }
+                />
+                <Route
+                  path="extensions"
+                  element={
+                    <ProviderGuard>
+                      <ExtensionsRoute />
+                    </ProviderGuard>
+                  }
+                />
+                <Route
+                  path="sessions"
+                  element={
+                    <ProviderGuard>
+                      <SessionsRoute />
+                    </ProviderGuard>
+                  }
+                />
+                <Route
+                  path="schedules"
+                  element={
+                    <ProviderGuard>
+                      <SchedulesRoute />
+                    </ProviderGuard>
+                  }
+                />
+                <Route
+                  path="recipes"
+                  element={
+                    <ProviderGuard>
+                      <RecipesRoute />
+                    </ProviderGuard>
+                  }
+                />
+                <Route
+                  path="recipe-editor"
+                  element={
+                    <ProviderGuard>
+                      <RecipeEditorRoute />
+                    </ProviderGuard>
+                  }
+                />
+                <Route
+                  path="shared-session"
+                  element={
+                    <ProviderGuard>
+                      <SharedSessionRouteWrapper
+                        isLoadingSharedSession={isLoadingSharedSession}
+                        setIsLoadingSharedSession={setIsLoadingSharedSession}
+                        sharedSessionError={sharedSessionError}
+                      />
+                    </ProviderGuard>
+                  }
+                />
+                <Route
+                  path="permission"
+                  element={
+                    <ProviderGuard>
+                      <PermissionRoute />
+                    </ProviderGuard>
+                  }
+                />
+                {/*<Route*/}
+                {/*  path="projects"*/}
+                {/*  element={*/}
+                {/*    <ProviderGuard>*/}
+                {/*      <ChatProvider chat={chat} setChat={setChat}>*/}
+                {/*        <ProjectsRoute />*/}
+                {/*      </ChatProvider>*/}
+                {/*    </ProviderGuard>  */}
+                {/*  }*/}
+                {/*/>*/}
+              </Route>
+            </Routes>
+          </div>
         </div>
-      </div>
 
         {/* Diff Side Panel */}
         <DiffSidePanel
@@ -1363,7 +1371,7 @@ export default function App() {
             // Note: We don't call toggleWindow() here because the window should stay at its current size
           }}
         />
-        
+
         {isGoosehintsModalOpen && (
           <GoosehintsModal
             directory={window.appConfig.get('GOOSE_WORKING_DIR') as string}
