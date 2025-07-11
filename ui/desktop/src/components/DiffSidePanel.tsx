@@ -102,8 +102,8 @@ export default function DiffSidePanel({
   const toggleInactiveStyles = `${toggleBaseStyles} bg-background text-textSubtle`;
 
   return (
-    <div className="flex-1 p-6 bg-bgSubtle animate-in slide-in-from-right duration-300 ease-out">
-      <div className="flex flex-col bg-bgApp rounded-lg h-full overflow-hidden text-textStandard border border-borderSubtle shadow-lg">
+    <div className="flex-1 bg-bgSubtle flex flex-col animate-in fade-in duration-350 ease-out">
+      <div className="flex m-6 flex-col bg-bgApp rounded-lg h-full overflow-hidden text-textStandard border border-borderSubtle shadow-lg animate-in slide-in-from-right duration-300 ease-out ">
         {/* Header */}
         <div className="flex items-center justify-between p-3 border-b border-borderSubtle">
           <h2 className="text-textSubtle font-medium text-sm inline-flex items-center gap-2">
@@ -143,55 +143,50 @@ export default function DiffSidePanel({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-hidden">
-          <ScrollArea className="h-full">
-            {parsedDiff.map((file, fileIndex) => (
-              <div
-                key={fileIndex}
-                className="border-b border-gray-200 dark:border-gray-700 last:border-b-0"
-              >
-                {/* File header */}
-                <div className="bg-bgApp p-3 flex items-center justify-between rounded-t-lg bg-bgApp overflow-hidden border border-borderSubtle sticky top-2 z-10 shadow-[0_-15px_0px_var(--background-app)] transition-all duration-200 ease-in-out">
-                  <div className="font-mono text-sm truncate">{file.fileName}</div>
-                  {enableActions && (
-                    <div className="flex gap-4 flex-shrink-0 text-xs">
-                      <button
-                        onClick={() => handleRejectFile(fileIndex)}
-                        className="flex items-center text-red-500 hover:text-red-600 transition-colors duration-200 ease-in-out transform hover:scale-105"
-                      >
-                        <X strokeWidth="3" size={16} />
-                        Reject All
-                      </button>
-                      <button
-                        onClick={() => handleApplyFile(fileIndex)}
-                        className="text-green-500 hover:text-green-600 flex items-center transition-colors duration-200 ease-in-out transform hover:scale-105"
-                      >
-                        <Check size={16} strokeWidth={2} />
-                        Apply All
-                      </button>
-                    </div>
-                  )}
-                </div>
-                <div className="rounded-b-lg overflow-hidden border border-borderSubtle border-t-0">
-                  {/* Hunks */}
-                  {file.hunks.map((hunk) => (
-                    <DiffHunkView
-                      key={hunk.id}
-                      hunk={hunk}
-                      fileIndex={fileIndex}
-                      viewMode={viewMode}
-                      isApplied={appliedHunks.has(hunk.id)}
-                      isRejected={rejectedHunks.has(hunk.id)}
-                      onApply={() => handleApplyHunk(fileIndex, hunk.id)}
-                      onReject={() => handleRejectHunk(fileIndex, hunk.id)}
-                      enableActions={enableActions}
-                    />
-                  ))}
-                </div>
+        <ScrollArea className="h-full">
+          {parsedDiff.map((file, fileIndex) => (
+            <div key={fileIndex} className="m-4 mr-0">
+              {/* File header */}
+              <div className="bg-bgApp p-3 flex items-center justify-between rounded-t-lg bg-bgApp overflow-hidden border border-borderSubtle sticky top-2 z-10 shadow-[0_-15px_0px_var(--background-app)] transition-all duration-200 ease-in-out">
+                <div className="font-mono text-sm truncate">{file.fileName}</div>
+                {enableActions && (
+                  <div className="flex gap-4 flex-shrink-0 text-xs">
+                    <button
+                      onClick={() => handleRejectFile(fileIndex)}
+                      className="flex items-center text-red-500 hover:text-red-600 transition-colors duration-200 ease-in-out transform hover:scale-105"
+                    >
+                      <X strokeWidth="3" size={16} />
+                      Reject All
+                    </button>
+                    <button
+                      onClick={() => handleApplyFile(fileIndex)}
+                      className="text-green-500 hover:text-green-600 flex items-center transition-colors duration-200 ease-in-out transform hover:scale-105"
+                    >
+                      <Check size={16} strokeWidth={2} />
+                      Apply All
+                    </button>
+                  </div>
+                )}
               </div>
-            ))}
-          </ScrollArea>
-        </div>
+              <div className="rounded-b-lg overflow-hidden border border-borderSubtle border-t-0">
+                {/* Hunks */}
+                {file.hunks.map((hunk) => (
+                  <DiffHunkView
+                    key={hunk.id}
+                    hunk={hunk}
+                    fileIndex={fileIndex}
+                    viewMode={viewMode}
+                    isApplied={appliedHunks.has(hunk.id)}
+                    isRejected={rejectedHunks.has(hunk.id)}
+                    onApply={() => handleApplyHunk(fileIndex, hunk.id)}
+                    onReject={() => handleRejectHunk(fileIndex, hunk.id)}
+                    enableActions={enableActions}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </ScrollArea>
       </div>
     </div>
   );
