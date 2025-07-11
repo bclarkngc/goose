@@ -25,6 +25,7 @@ import ProviderSettings from './components/settings/providers/ProviderSettingsPa
 import RecipeEditor from './components/RecipeEditor';
 import RecipesView from './components/RecipesView';
 import DiffViewer from './components/DiffViewer';
+import DiffSidePanel from './components/DiffSidePanel';
 import { useChat } from './hooks/useChat';
 import { AppLayout } from './components/Layout/AppLayout';
 import { ChatProvider } from './contexts/ChatContext';
@@ -812,8 +813,15 @@ export default function App() {
       }
     };
 
-    initializeApp();
-  }, [getExtensions, addExtension, read]);
+    initializeApp().catch((error) => {
+      console.error('Unhandled error in initialization:', error);
+      setFatalError(`${error instanceof Error ? error.message : 'Unknown error'}`);
+    });
+  }, [read, getExtensions, addExtension]);
+
+  // Add diff side panel state
+  const [isDiffSidePanelOpen, setIsDiffSidePanelOpen] = useState(false);
+  const [diffSidePanelContent, setDiffSidePanelContent] = useState<string>('');
 
   useEffect(() => {
     console.log('Sending reactReady signal to Electron');
@@ -1010,26 +1018,8 @@ export default function App() {
     return () => window.electron.off('set-view', handleSetView);
   }, []);
 
-<<<<<<< HEAD
-||||||| parent of 6b8cf9b8f1 (Implement Diff UI)
-  useEffect(() => {
-    console.log(`View changed to: ${view}`);
-    if (view !== 'chat' && view !== 'recipeEditor') {
-      console.log('Not in chat view, clearing loading session state');
-      setIsLoadingSession(false);
-    }
-  }, [view]);
-
-=======
-  useEffect(() => {
-    console.log(`View changed to: ${view}`);
-    if (view !== 'chat' && view !== 'recipeEditor' && view !== 'diffViewer') {
-      console.log('Not in chat view, clearing loading session state');
-      setIsLoadingSession(false);
-    }
-  }, [view]);
-
->>>>>>> 6b8cf9b8f1 (Implement Diff UI)
+  // Remove the old view-based useEffect since we're using React Router now
+  
   const config = window.electron.getConfig();
   const STRICT_ALLOWLIST = config.GOOSE_ALLOWLIST_WARNING === true ? false : true;
 
@@ -1121,6 +1111,45 @@ export default function App() {
     };
   }, []);
 
+  // Listen for open-diff-viewer event at App level
+  useEffect(() => {
+    const handleOpenDiffViewer = () => {
+      const diffContent = window.pendingDiffContent;
+      if (diffContent) {
+        window.electron.logInfo('Opening diff viewer as side panel');
+        setDiffSidePanelContent(diffContent);
+        setIsDiffSidePanelOpen(true);
+        // Clear the pending diff content
+        window.pendingDiffContent = undefined;
+      }
+    };
+
+    window.addEventListener('open-diff-viewer', handleOpenDiffViewer);
+
+    return () => {
+      window.removeEventListener('open-diff-viewer', handleOpenDiffViewer);
+    };
+  }, []);
+
+  // Handle window resizing when diff panel opens/closes
+  useEffect(() => {
+    const resizeWindow = async () => {
+      try {
+        if (isDiffSidePanelOpen) {
+          // Expand window to accommodate diff panel
+          await window.electron.resizeWindow(50); // Add 50% more width
+        } else {
+          // Restore original window size
+          await window.electron.resizeWindow(0); // Reset to original size
+        }
+      } catch (error) {
+        console.error('Error resizing window:', error);
+      }
+    };
+
+    resizeWindow();
+  }, [isDiffSidePanelOpen]);
+
   const handleConfirm = async () => {
     if (pendingLink) {
       console.log(`Confirming installation of extension from: ${pendingLink}`);
@@ -1188,15 +1217,16 @@ export default function App() {
         )}
         <div className="relative w-screen h-screen overflow-hidden bg-background-muted flex flex-col">
           <div className="titlebar-drag-region" />
-          <Routes>
-            <Route path="welcome" element={<WelcomeRoute />} />
-            <Route path="configure-providers" element={<ConfigureProvidersRoute />} />
-            <Route
-              path="/"
-              element={
-                <ChatProvider chat={chat} setChat={setChat}>
-                  <AppLayout setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
-                </ChatProvider>
+          <div className={`transition-all duration-300 ${isDiffSidePanelOpen ? 'mr-[50vw]' : ''}`}>
+            <Routes>
+              <Route path="welcome" element={<WelcomeRoute />} />
+              <Route path="configure-providers" element={<ConfigureProvidersRoute />} />
+              <Route
+                path="/"
+                element={
+                  <ChatProvider chat={chat} setChat={setChat}>
+                    <AppLayout setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
+                  </ChatProvider>
               }
             >
               <Route
@@ -1307,6 +1337,14 @@ export default function App() {
             </Route>
           </Routes>
         </div>
+
+        {/* Diff Side Panel */}
+        <DiffSidePanel
+          diffContent={diffSidePanelContent}
+          isOpen={isDiffSidePanelOpen}
+          onClose={() => setIsDiffSidePanelOpen(false)}
+        />
+        
         {isGoosehintsModalOpen && (
           <GoosehintsModal
             directory={window.appConfig.get('GOOSE_WORKING_DIR') as string}
