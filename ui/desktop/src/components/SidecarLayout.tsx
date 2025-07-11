@@ -35,22 +35,48 @@ interface SidecarProviderProps {
 function MonacoDiffViewer({ diffContent, fileName }: { diffContent: string; fileName: string }) {
   const [viewMode, setViewMode] = useState<'split' | 'unified'>('split');
   const [parsedDiff, setParsedDiff] = useState<{
-    beforeLines: Array<{ content: string; lineNumber: number; type: 'context' | 'removed' | 'added' }>;
-    afterLines: Array<{ content: string; lineNumber: number; type: 'context' | 'removed' | 'added' }>;
-    unifiedLines: Array<{ content: string; beforeLineNumber: number | null; afterLineNumber: number | null; type: 'context' | 'removed' | 'added' }>;
+    beforeLines: Array<{
+      content: string;
+      lineNumber: number;
+      type: 'context' | 'removed' | 'added';
+    }>;
+    afterLines: Array<{
+      content: string;
+      lineNumber: number;
+      type: 'context' | 'removed' | 'added';
+    }>;
+    unifiedLines: Array<{
+      content: string;
+      beforeLineNumber: number | null;
+      afterLineNumber: number | null;
+      type: 'context' | 'removed' | 'added';
+    }>;
   }>({ beforeLines: [], afterLines: [], unifiedLines: [] });
 
   React.useEffect(() => {
     // Parse unified diff format into before/after with line numbers
     const lines = diffContent.split('\n');
-    const beforeLines: Array<{ content: string; lineNumber: number; type: 'context' | 'removed' | 'added' }> = [];
-    const afterLines: Array<{ content: string; lineNumber: number; type: 'context' | 'removed' | 'added' }> = [];
-    const unifiedLines: Array<{ content: string; beforeLineNumber: number | null; afterLineNumber: number | null; type: 'context' | 'removed' | 'added' }> = [];
-    
+    const beforeLines: Array<{
+      content: string;
+      lineNumber: number;
+      type: 'context' | 'removed' | 'added';
+    }> = [];
+    const afterLines: Array<{
+      content: string;
+      lineNumber: number;
+      type: 'context' | 'removed' | 'added';
+    }> = [];
+    const unifiedLines: Array<{
+      content: string;
+      beforeLineNumber: number | null;
+      afterLineNumber: number | null;
+      type: 'context' | 'removed' | 'added';
+    }> = [];
+
     let beforeLineNum = 1;
     let afterLineNum = 1;
     let inHunk = false;
-    
+
     for (const line of lines) {
       if (line.startsWith('@@')) {
         inHunk = true;
@@ -61,36 +87,54 @@ function MonacoDiffViewer({ diffContent, fileName }: { diffContent: string; file
         }
         continue;
       }
-      
+
       if (!inHunk) continue;
-      
+
       if (line.startsWith('-')) {
         // Removed line - only in before
         const content = line.substring(1);
         beforeLines.push({ content, lineNumber: beforeLineNum, type: 'removed' });
-        unifiedLines.push({ content, beforeLineNumber: beforeLineNum, afterLineNumber: null, type: 'removed' });
+        unifiedLines.push({
+          content,
+          beforeLineNumber: beforeLineNum,
+          afterLineNumber: null,
+          type: 'removed',
+        });
         beforeLineNum++;
       } else if (line.startsWith('+')) {
         // Added line - only in after
         const content = line.substring(1);
         afterLines.push({ content, lineNumber: afterLineNum, type: 'added' });
-        unifiedLines.push({ content, beforeLineNumber: null, afterLineNumber: afterLineNum, type: 'added' });
+        unifiedLines.push({
+          content,
+          beforeLineNumber: null,
+          afterLineNumber: afterLineNum,
+          type: 'added',
+        });
         afterLineNum++;
       } else if (line.startsWith(' ')) {
         // Context line - in both
         const content = line.substring(1);
         beforeLines.push({ content, lineNumber: beforeLineNum, type: 'context' });
         afterLines.push({ content, lineNumber: afterLineNum, type: 'context' });
-        unifiedLines.push({ content, beforeLineNumber: beforeLineNum, afterLineNumber: afterLineNum, type: 'context' });
+        unifiedLines.push({
+          content,
+          beforeLineNumber: beforeLineNum,
+          afterLineNumber: afterLineNum,
+          type: 'context',
+        });
         beforeLineNum++;
         afterLineNum++;
       }
     }
-    
+
     setParsedDiff({ beforeLines, afterLines, unifiedLines });
   }, [diffContent]);
 
-  const renderDiffLine = (line: { content: string; lineNumber: number; type: 'context' | 'removed' | 'added' }, side: 'before' | 'after') => {
+  const renderDiffLine = (
+    line: { content: string; lineNumber: number; type: 'context' | 'removed' | 'added' },
+    side: 'before' | 'after'
+  ) => {
     const getLineStyle = () => {
       switch (line.type) {
         case 'removed':
@@ -128,7 +172,10 @@ function MonacoDiffViewer({ diffContent, fileName }: { diffContent: string; file
     };
 
     return (
-      <div key={`${side}-${line.lineNumber}`} className={`flex font-mono text-sm ${getLineStyle()}`}>
+      <div
+        key={`${side}-${line.lineNumber}`}
+        className={`flex font-mono text-sm ${getLineStyle()}`}
+      >
         <div className="w-12 text-textSubtle text-right pr-2 py-1 select-none flex-shrink-0">
           {line.lineNumber}
         </div>
@@ -142,7 +189,15 @@ function MonacoDiffViewer({ diffContent, fileName }: { diffContent: string; file
     );
   };
 
-  const renderUnifiedLine = (line: { content: string; beforeLineNumber: number | null; afterLineNumber: number | null; type: 'context' | 'removed' | 'added' }, index: number) => {
+  const renderUnifiedLine = (
+    line: {
+      content: string;
+      beforeLineNumber: number | null;
+      afterLineNumber: number | null;
+      type: 'context' | 'removed' | 'added';
+    },
+    index: number
+  ) => {
     const getLineStyle = () => {
       switch (line.type) {
         case 'removed':
@@ -205,7 +260,7 @@ function MonacoDiffViewer({ diffContent, fileName }: { diffContent: string; file
           <GitBranch size={16} className="text-primary" />
           <span className="text-textStandard font-medium">{fileName}</span>
         </div>
-        
+
         {/* View Mode Toggle */}
         <div className="flex items-center space-x-1 bg-background-muted rounded-md p-1">
           <Button
@@ -213,8 +268,8 @@ function MonacoDiffViewer({ diffContent, fileName }: { diffContent: string; file
             size="sm"
             onClick={() => setViewMode('split')}
             className={`px-3 py-1 text-xs ${
-              viewMode === 'split' 
-                ? 'bg-background-subtle text-textStandard' 
+              viewMode === 'split'
+                ? 'bg-background-subtle text-textStandard'
                 : 'text-textSubtle hover:text-textStandard hover:bg-background-subtle'
             }`}
           >
@@ -225,8 +280,8 @@ function MonacoDiffViewer({ diffContent, fileName }: { diffContent: string; file
             size="sm"
             onClick={() => setViewMode('unified')}
             className={`px-3 py-1 text-xs ${
-              viewMode === 'unified' 
-                ? 'bg-background-subtle text-textStandard' 
+              viewMode === 'unified'
+                ? 'bg-background-subtle text-textStandard'
                 : 'text-textSubtle hover:text-textStandard hover:bg-background-subtle'
             }`}
           >
@@ -276,10 +331,10 @@ export function SidecarProvider({ children, showSidecar = true }: SidecarProvide
   const [views, setViews] = useState<SidecarView[]>([]);
 
   const showView = (view: SidecarView) => {
-    setViews(prev => {
-      const existing = prev.find(v => v.id === view.id);
+    setViews((prev) => {
+      const existing = prev.find((v) => v.id === view.id);
       if (existing) {
-        return prev.map(v => v.id === view.id ? view : v);
+        return prev.map((v) => (v.id === view.id ? view : v));
       }
       return [...prev, view];
     });
@@ -295,13 +350,13 @@ export function SidecarProvider({ children, showSidecar = true }: SidecarProvide
       id: 'diff',
       title: 'Diff Viewer',
       icon: <GitBranch size={16} />,
-      content: <MonacoDiffViewer diffContent={content} fileName={fileName} />
+      content: <MonacoDiffViewer diffContent={content} fileName={fileName} />,
     };
     showView(diffView);
   };
 
   const hideDiffViewer = () => {
-    setViews(prev => prev.filter(v => v.id !== 'diff'));
+    setViews((prev) => prev.filter((v) => v.id !== 'diff'));
     if (activeView === 'diff') {
       setActiveView(null);
     }
@@ -316,15 +371,11 @@ export function SidecarProvider({ children, showSidecar = true }: SidecarProvide
     hideDiffViewer,
   };
 
-  const currentView = views.find(v => v.id === activeView);
+  const currentView = views.find((v) => v.id === activeView);
 
   // Don't render sidecar if showSidecar is false
   if (!showSidecar) {
-    return (
-      <SidecarContext.Provider value={contextValue}>
-        {children}
-      </SidecarContext.Provider>
-    );
+    return <SidecarContext.Provider value={contextValue}>{children}</SidecarContext.Provider>;
   }
 
   return (
@@ -337,12 +388,12 @@ export function SidecarProvider({ children, showSidecar = true }: SidecarProvide
 
         {/* Collapsed Sidecar Panel - Only visible when not expanded */}
         {!activeView && (
-          <div className="fixed top-0 right-0 h-full w-16 bg-background-default border-l border-borderSubtle z-40 opacity-0 pointer-events-none" />
+          <div className="fixed top-0 right-0 h-full w-16 bg-background-default border-l border-borderSubtle opacity-0 pointer-events-none" />
         )}
 
         {/* Expanded Sidecar Panel - Only visible when there's an active view */}
         {activeView && currentView && (
-          <div className="fixed right-0 top-0 h-full w-[700px] bg-background-default border-l border-borderSubtle z-50 transition-transform duration-300">
+          <div className="fixed right-0 top-0 h-full w-[700px] bg-background-default border-l border-borderSubtle transition-transform duration-300">
             {/* Sidecar Header */}
             <div className="flex items-center justify-between p-4 border-b border-borderSubtle">
               <div className="flex items-center space-x-2">
@@ -360,9 +411,7 @@ export function SidecarProvider({ children, showSidecar = true }: SidecarProvide
             </div>
 
             {/* Sidecar Content */}
-            <div className="h-[calc(100%-60px)] overflow-hidden">
-              {currentView.content}
-            </div>
+            <div className="h-[calc(100%-60px)] overflow-hidden">{currentView.content}</div>
           </div>
         )}
       </div>
