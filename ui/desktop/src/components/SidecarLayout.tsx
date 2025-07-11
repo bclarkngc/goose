@@ -32,10 +32,108 @@ interface SidecarProviderProps {
 
 // Monaco Editor Diff Component
 function MonacoDiffViewer({ diffContent, fileName }: { diffContent: string; fileName: string }) {
+  const [parsedDiff, setParsedDiff] = useState<{
+    beforeLines: Array<{ content: string; lineNumber: number; type: 'context' | 'removed' | 'added' }>;
+    afterLines: Array<{ content: string; lineNumber: number; type: 'context' | 'removed' | 'added' }>;
+  }>({ beforeLines: [], afterLines: [] });
+
   React.useEffect(() => {
-    // Parse unified diff format - for now just display the raw diff
-    // In the future, this could be enhanced to parse the diff and show side-by-side view
+    // Parse unified diff format into before/after with line numbers
+    const lines = diffContent.split('\n');
+    const beforeLines: Array<{ content: string; lineNumber: number; type: 'context' | 'removed' | 'added' }> = [];
+    const afterLines: Array<{ content: string; lineNumber: number; type: 'context' | 'removed' | 'added' }> = [];
+    
+    let beforeLineNum = 1;
+    let afterLineNum = 1;
+    let inHunk = false;
+    
+    for (const line of lines) {
+      if (line.startsWith('@@')) {
+        inHunk = true;
+        const match = line.match(/@@ -(\d+),?\d* \+(\d+),?\d* @@/);
+        if (match) {
+          beforeLineNum = parseInt(match[1]);
+          afterLineNum = parseInt(match[2]);
+        }
+        continue;
+      }
+      
+      if (!inHunk) continue;
+      
+      if (line.startsWith('-')) {
+        // Removed line - only in before
+        const content = line.substring(1);
+        beforeLines.push({ content, lineNumber: beforeLineNum, type: 'removed' });
+        beforeLineNum++;
+      } else if (line.startsWith('+')) {
+        // Added line - only in after
+        const content = line.substring(1);
+        afterLines.push({ content, lineNumber: afterLineNum, type: 'added' });
+        afterLineNum++;
+      } else if (line.startsWith(' ')) {
+        // Context line - in both
+        const content = line.substring(1);
+        beforeLines.push({ content, lineNumber: beforeLineNum, type: 'context' });
+        afterLines.push({ content, lineNumber: afterLineNum, type: 'context' });
+        beforeLineNum++;
+        afterLineNum++;
+      }
+    }
+    
+    setParsedDiff({ beforeLines, afterLines });
   }, [diffContent]);
+
+  const renderDiffLine = (line: { content: string; lineNumber: number; type: 'context' | 'removed' | 'added' }, side: 'before' | 'after') => {
+    const getLineStyle = () => {
+      switch (line.type) {
+        case 'removed':
+          return 'bg-red-900/30 border-l-2 border-red-500';
+        case 'added':
+          return 'bg-green-900/30 border-l-2 border-green-500';
+        case 'context':
+        default:
+          return 'bg-transparent';
+      }
+    };
+
+    const getTextColor = () => {
+      switch (line.type) {
+        case 'removed':
+          return 'text-red-300';
+        case 'added':
+          return 'text-green-300';
+        case 'context':
+        default:
+          return 'text-gray-300';
+      }
+    };
+
+    const getLinePrefix = () => {
+      switch (line.type) {
+        case 'removed':
+          return '-';
+        case 'added':
+          return '+';
+        case 'context':
+        default:
+          return ' ';
+      }
+    };
+
+    return (
+      <div key={`${side}-${line.lineNumber}`} className={`flex font-mono text-sm ${getLineStyle()}`}>
+        <div className="w-12 text-gray-500 text-right pr-2 py-1 select-none flex-shrink-0">
+          {line.lineNumber}
+        </div>
+        <div className="w-4 text-gray-500 text-center py-1 select-none flex-shrink-0">
+          {getLinePrefix()}
+        </div>
+        <div className={`flex-1 py-1 pr-4 ${getTextColor()}`}>
+          <code>{line.content || ' '}</code>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="h-full flex flex-col bg-[#1E1E1E]">
@@ -44,35 +142,29 @@ function MonacoDiffViewer({ diffContent, fileName }: { diffContent: string; file
         <div className="flex items-center space-x-2">
           <GitBranch size={16} className="text-blue-400" />
           <span className="text-white font-medium">{fileName}</span>
-          <span className="text-gray-400 text-sm">• File changes: 320-345 line</span>
-        </div>
-        <div className="flex items-center space-x-2">
-          <Button variant="ghost" size="sm" className="text-red-400 hover:text-red-300">
-            <X size={14} className="mr-1" />
-            Deny all
-          </Button>
-          <Button variant="ghost" size="sm" className="text-green-400 hover:text-green-300">
-            <span className="mr-1">✓</span>
-            Approve all
-          </Button>
         </div>
       </div>
 
-      {/* Changed Import Statements Section */}
-      <div className="p-4 border-b border-[#232323]">
-        <div className="flex items-center space-x-2 mb-2">
-          <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-          <span className="text-green-400 font-medium">Changed import statements</span>
-          <span className="text-gray-400 text-sm">• 1 item changed: 320-345 line</span>
+      {/* Split Diff Content */}
+      <div className="flex-1 overflow-hidden flex">
+        {/* Before (Left Side) */}
+        <div className="flex-1 border-r border-[#232323]">
+          <div className="bg-[#2D1B1B] text-red-300 px-4 py-2 text-sm font-medium border-b border-[#232323]">
+            Before
+          </div>
+          <div className="h-[calc(100%-40px)] overflow-auto">
+            {parsedDiff.beforeLines.map((line) => renderDiffLine(line, 'before'))}
+          </div>
         </div>
-      </div>
 
-      {/* Diff Content */}
-      <div className="flex-1 overflow-hidden">
-        <div className="h-full bg-[#0D1117] font-mono text-sm">
-          <pre className="h-full overflow-auto p-4 text-white whitespace-pre-wrap">
-            {diffContent}
-          </pre>
+        {/* After (Right Side) */}
+        <div className="flex-1">
+          <div className="bg-[#1B2D1B] text-green-300 px-4 py-2 text-sm font-medium border-b border-[#232323]">
+            After
+          </div>
+          <div className="h-[calc(100%-40px)] overflow-auto">
+            {parsedDiff.afterLines.map((line) => renderDiffLine(line, 'after'))}
+          </div>
         </div>
       </div>
     </div>
