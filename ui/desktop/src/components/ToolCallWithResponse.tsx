@@ -11,13 +11,29 @@ import {
 import { snakeToTitleCase } from '../utils';
 import Dot, { LoadingStatus } from './ui/Dot';
 import { NotificationEvent } from '../hooks/useMessageStream';
-import { FileDiff } from 'lucide-react';
 
 // Extend the Window interface to include our custom property
 declare global {
   interface Window {
     pendingDiffContent?: string;
   }
+}
+
+// Helper function to extract diff content from tool response
+export function extractDiffContent(toolResponse?: ToolResponseMessageContent): string | null {
+  if (!toolResponse) return null;
+  
+  const result = toolResponse.toolResult.value || [];
+  const resourceContents = result.filter((item) => item.type === 'resource') as ResourceContent[];
+  const checkpoint = resourceContents.find((item) => item.resource.uri === 'goose://checkpoint');
+  const diffContent = JSON.parse(checkpoint?.resource.text || '{}').diff;
+  
+  return diffContent !== undefined ? diffContent : null;
+}
+
+// Helper function to check if tool response has diff content
+export function hasDiffContent(toolResponse?: ToolResponseMessageContent): boolean {
+  return extractDiffContent(toolResponse) !== null;
 }
 
 interface ToolCallWithResponseProps {
@@ -136,23 +152,8 @@ function ToolCallView({
     }
   })();
 
-  //extract resource content if present
-  const result = toolResponse?.toolResult.value || [];
-  const resourceContents = result.filter((item) => item.type === 'resource') as ResourceContent[];
-  const checkpoint = resourceContents.find((item) => item.resource.uri === 'goose://checkpoint');
-  const diffContent = JSON.parse(checkpoint?.resource.text || '{}').diff;
-  const hasDiffContent = diffContent !== undefined;
-  console.log(resourceContents);
-  console.log(checkpoint);
-  console.log(diffContent);
-
-  const handleShowDiff = () => {
-    // Store diff content globally so the new window can access it
-    window.pendingDiffContent = diffContent;
-
-    // Dispatch a custom event to open diff in a new window
-    window.dispatchEvent(new CustomEvent('open-diff-viewer'));
-  };
+  //extract resource content if present - keeping for backward compatibility
+  // const diffContent = extractDiffContent(toolResponse);
 
   const isToolDetails = Object.entries(toolCall?.arguments).length > 0;
   const loadingStatus: LoadingStatus = !toolResponse?.toolResult.status
@@ -355,95 +356,72 @@ function ToolCallView({
   };
 
   return (
-    <div className="border border-borderSubtle rounded-lg overflow-hidden shadow-sm">
-      <ToolCallExpandable
-        isStartExpanded={isRenderingProgress}
-        isForceExpand={isShouldExpand}
-        label={
-          <div className="flex items-center justify-between w-full pr-2">
-            <div className="flex items-center">
-              <Dot size={2} loadingStatus={loadingStatus} />
-              <span className="ml-[10px]">
-                {(() => {
-                  const description = getToolDescription();
-                  if (description) {
-                    return description;
-                  }
-                  // Fallback to the original tool name formatting
-                  return snakeToTitleCase(
-                    toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2)
-                  );
-                })()}
-              </span>
-            </div>
-            {/* Diff button */}
-            {hasDiffContent && (
-              <div className="relative group">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleShowDiff();
-                  }}
-                  className="p-1 hover:bg-background-subtle rounded transition-colors flex items-center gap-1"
-                  title="Show Diff"
-                >
-                  <FileDiff size={16} className="text-textSubtle" />
-                </button>
-                {/* Tooltip */}
-                <div className="absolute right-0 top-full mt-1 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
-                  Show Diff
-                </div>
+    <ToolCallExpandable
+      isStartExpanded={isRenderingProgress}
+      isForceExpand={isShouldExpand}
+      label={
+        <div className="flex items-center justify-between w-full pr-2">
+          <div className="flex items-center">
+            <Dot size={2} loadingStatus={loadingStatus} />
+            <span className="ml-[10px]">
+              {(() => {
+              const description = getToolDescription();
+              if (description) {
+                return description;
+              }
+              // Fallback to the original tool name formatting
+              return snakeToTitleCase(toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2));
+            })()}</span>
+
+          </div>
+        </div>
+      }
+    >
+      {/* Tool Details */}
+      {isToolDetails && (
+        <div className="bg-bgStandard rounded-t mt-1">
+          <ToolDetailsView toolCall={toolCall} isStartExpanded={isExpandToolDetails} />
+        </div>
+      )}
+
+      {logs && logs.length > 0 && (
+        <div className="bg-bgStandard mt-1">
+          <ToolLogsView
+            logs={logs}
+            working={toolResults.length === 0}
+            isStartExpanded={toolResults.length === 0}
+          />
+        </div>
+      )}
+
+      {toolResults.length === 0 &&
+        progressEntries.length > 0 &&
+        progressEntries.map((entry, index) => (
+          <div className="p-2" key={index}>
+            <ProgressBar progress={entry.progress} total={entry.total} message={entry.message} />
+          </div>
+        ))}
+
+      {/* Tool Output */}
+      {!isCancelledMessage && (
+        <>
+          {toolResults.map(({ result, isExpandToolResults }, index) => {
+            const isLast = index === toolResults.length - 1;
+            return (
+              <div
+                key={index}
+                className={`bg-bgStandard mt-1 
+                  ${isToolDetails || index > 0 ? '' : 'rounded-t'} 
+                  ${isLast ? 'rounded-b' : ''}
+                `}
+              >
+                <ToolResultView result={result} isStartExpanded={isExpandToolResults} />
               </div>
-            )}
-          </div>
-        }
-      >
-        {/* Tool Details */}
-        {isToolDetails && (
-          <div className="bg-background-default rounded-sm mt-1 border-t border-borderSubtle">
-            <ToolDetailsView toolCall={toolCall} isStartExpanded={isExpandToolDetails} />
-          </div>
-        )}
-
-        {logs && logs.length > 0 && (
-          <div className="bg-background-default mt-1 border-t border-borderSubtle">
-            <ToolLogsView
-              logs={logs}
-              working={toolResults.length === 0}
-              isStartExpanded={toolResults.length === 0}
-            />
-          </div>
-        )}
-
-        {toolResults.length === 0 &&
-          progressEntries.length > 0 &&
-          progressEntries.map((entry, index) => (
-            <div className="p-3 border-t border-borderSubtle" key={index}>
-              <ProgressBar progress={entry.progress} total={entry.total} message={entry.message} />
-            </div>
-          ))}
-
-        {/* Tool Output */}
-        {!isCancelledMessage && (
-          <>
-            {toolResults.map(({ result, isExpandToolResults }, index) => {
-              const isLast = index === toolResults.length - 1;
-              return (
-                <div
-                  key={index}
-                  className={`bg-background-default mt-1 border-t border-borderSubtle 
-                    ${isToolDetails || index > 0 ? '' : 'rounded-t'} 
-                    ${isLast ? 'rounded-b' : ''}
-                  `}
-                >
-                  <ToolResultView result={result} isStartExpanded={isExpandToolResults} />
-                </div>
-              );
-            })}
-          </>
-        )}
-      </ToolCallExpandable>
-    </div>
+            );
+          })}
+        </>
+      )}
+    </ToolCallExpandable>
   );
 }
 
