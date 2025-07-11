@@ -13,9 +13,7 @@ const SidecarContext = createContext<SidecarContextType | null>(null);
 
 export const useSidecar = () => {
   const context = useContext(SidecarContext);
-  if (!context) {
-    throw new Error('useSidecar must be used within SidecarProvider');
-  }
+  // Return null if no context (allows optional usage)
   return context;
 };
 

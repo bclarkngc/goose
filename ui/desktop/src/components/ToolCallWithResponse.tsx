@@ -153,16 +153,16 @@ function ToolCallView({
     }
   })();
 
-  // Get sidecar context
+  // Get sidecar context (optional)
   const sidecar = useSidecar();
 
   // Check for diff content
   const diffContent = extractDiffContent(toolResponse);
   const hasDiff = hasDiffContent(toolResponse);
 
-  // Auto-show diff viewer when diff content is available
+  // Auto-show diff viewer when diff content is available (only if sidecar is available)
   useEffect(() => {
-    if (hasDiff && diffContent) {
+    if (hasDiff && diffContent && sidecar) {
       const args = toolCall.arguments as Record<string, ToolCallArgumentValue>;
       const fileName = args.path ? String(args.path) : 'File';
       sidecar.showDiffViewer(diffContent, fileName);
