@@ -152,9 +152,6 @@ function ToolCallView({
     }
   })();
 
-  //extract resource content if present - keeping for backward compatibility
-  // const diffContent = extractDiffContent(toolResponse);
-
   const isToolDetails = Object.entries(toolCall?.arguments).length > 0;
   const loadingStatus: LoadingStatus = !toolResponse?.toolResult.status
     ? 'loading'
@@ -356,72 +353,74 @@ function ToolCallView({
   };
 
   return (
-    <ToolCallExpandable
-      isStartExpanded={isRenderingProgress}
-      isForceExpand={isShouldExpand}
-      label={
-        <div className="flex items-center justify-between w-full pr-2">
-          <div className="flex items-center">
+    <div className="border border-borderSubtle rounded-lg overflow-hidden shadow-sm">
+      <ToolCallExpandable
+        isStartExpanded={isRenderingProgress}
+        isForceExpand={isShouldExpand}
+        label={
+          <>
             <Dot size={2} loadingStatus={loadingStatus} />
             <span className="ml-[10px]">
               {(() => {
-              const description = getToolDescription();
-              if (description) {
-                return description;
-              }
-              // Fallback to the original tool name formatting
-              return snakeToTitleCase(toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2));
-            })()}</span>
-
+                const description = getToolDescription();
+                if (description) {
+                  return description;
+                }
+                // Fallback to the original tool name formatting
+                return snakeToTitleCase(
+                  toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2)
+                );
+              })()}
+            </span>
+          </>
+        }
+      >
+        {/* Tool Details */}
+        {isToolDetails && (
+          <div className="bg-background-default rounded-sm mt-1 border-t border-borderSubtle">
+            <ToolDetailsView toolCall={toolCall} isStartExpanded={isExpandToolDetails} />
           </div>
-        </div>
-      }
-    >
-      {/* Tool Details */}
-      {isToolDetails && (
-        <div className="bg-bgStandard rounded-t mt-1">
-          <ToolDetailsView toolCall={toolCall} isStartExpanded={isExpandToolDetails} />
-        </div>
-      )}
+        )}
 
-      {logs && logs.length > 0 && (
-        <div className="bg-bgStandard mt-1">
-          <ToolLogsView
-            logs={logs}
-            working={toolResults.length === 0}
-            isStartExpanded={toolResults.length === 0}
-          />
-        </div>
-      )}
-
-      {toolResults.length === 0 &&
-        progressEntries.length > 0 &&
-        progressEntries.map((entry, index) => (
-          <div className="p-2" key={index}>
-            <ProgressBar progress={entry.progress} total={entry.total} message={entry.message} />
+        {logs && logs.length > 0 && (
+          <div className="bg-background-default mt-1 border-t border-borderSubtle">
+            <ToolLogsView
+              logs={logs}
+              working={toolResults.length === 0}
+              isStartExpanded={toolResults.length === 0}
+            />
           </div>
-        ))}
+        )}
 
-      {/* Tool Output */}
-      {!isCancelledMessage && (
-        <>
-          {toolResults.map(({ result, isExpandToolResults }, index) => {
-            const isLast = index === toolResults.length - 1;
-            return (
-              <div
-                key={index}
-                className={`bg-bgStandard mt-1 
-                  ${isToolDetails || index > 0 ? '' : 'rounded-t'} 
-                  ${isLast ? 'rounded-b' : ''}
-                `}
-              >
-                <ToolResultView result={result} isStartExpanded={isExpandToolResults} />
-              </div>
-            );
-          })}
-        </>
-      )}
-    </ToolCallExpandable>
+        {toolResults.length === 0 &&
+          progressEntries.length > 0 &&
+          progressEntries.map((entry, index) => (
+            <div className="p-3 border-t border-borderSubtle" key={index}>
+              <ProgressBar progress={entry.progress} total={entry.total} message={entry.message} />
+            </div>
+          ))}
+
+        {/* Tool Output */}
+        {!isCancelledMessage && (
+          <>
+            {toolResults.map(({ result, isExpandToolResults }, index) => {
+              const isLast = index === toolResults.length - 1;
+              return (
+                <div
+                  key={index}
+                  className={`bg-background-default mt-1 border-t border-borderSubtle 
+                    ${isToolDetails || index > 0 ? '' : 'rounded-t'} 
+                    ${isLast ? 'rounded-b' : ''}
+                  `}
+                >
+                  <ToolResultView result={result} isStartExpanded={isExpandToolResults} />
+                </div>
+              );
+            })}
+          </>
+        )}
+      </ToolCallExpandable>
+    </div>
   );
 }
 
