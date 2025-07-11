@@ -42,7 +42,7 @@
  * while remaining flexible enough to support different UI contexts (Hub vs Pair).
  */
 
-import React, { useEffect, useContext, createContext, useRef } from 'react';
+import React, { useEffect, useContext, createContext, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import GooseMessage from './GooseMessage';
 import UserMessage from './UserMessage';
@@ -52,6 +52,7 @@ import LayingEggLoader from './LayingEggLoader';
 import LoadingGoose from './LoadingGoose';
 import Splash from './Splash';
 import { SessionSummaryModal } from './context_management/SessionSummaryModal';
+import RestoreModal from './RestoreModal';
 import {
   ChatContextManagerProvider,
   useChatContextManager,
@@ -119,6 +120,11 @@ function BaseChatContent({
 
   // Get disableAnimation from location state
   const disableAnimation = location.state?.disableAnimation || false;
+
+  // State for restore modal
+  const [restoreModalFiles, setRestoreModalFiles] = useState<
+    { path: string; checkpoint: string; timestamp: string }[] | null
+  >(null);
 
   const {
     summaryContent,
@@ -279,27 +285,8 @@ function BaseChatContent({
                   message={message} 
                   messages={messages}
                   onRestore={(files) => {
-                    // Handle file restoration by calling the diff API
-                    files.forEach(async (file) => {
-                      try {
-                        const response = await fetch('/api/diff/restore', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            path: file.path,
-                            checkpoint: file.checkpoint,
-                          }),
-                        });
-                        
-                        if (response.ok) {
-                          console.log(`Successfully restored ${file.path} to checkpoint ${file.checkpoint}`);
-                        } else {
-                          console.error(`Failed to restore ${file.path}:`, await response.text());
-                        }
-                      } catch (error) {
-                        console.error(`Error restoring ${file.path}:`, error);
-                      }
-                    });
+                    // Show the restore modal first
+                    setRestoreModalFiles(files);
                   }}
                 />
               )}
@@ -477,6 +464,25 @@ function BaseChatContent({
         }}
         summaryContent={summaryContent}
       />
+
+      {/* Restore Modal */}
+      {restoreModalFiles && (
+        <RestoreModal
+          files={restoreModalFiles}
+          onConfirm={async (files) => {
+            // Create a restore message to send to the chat
+            const fileList = files.map(f => `• ${f.path} (from ${f.timestamp})`).join('\n');
+            const restoreMessage = `Please restore the following files to their earlier versions:\n\n${fileList}`;
+            
+            // Send the restore message to the chat
+            engineHandleSubmit(restoreMessage);
+            
+            // Close the modal
+            setRestoreModalFiles(null);
+          }}
+          onClose={() => setRestoreModalFiles(null)}
+        />
+      )}
     </div>
   );
 }

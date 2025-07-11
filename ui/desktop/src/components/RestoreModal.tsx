@@ -58,11 +58,11 @@ const RestoreModal: FC<RestoreModalProps> = ({ files, onConfirm, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md bg-bgApp shadow-xl rounded-3xl z-50 flex flex-col overflow-hidden">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <Card className="w-full max-w-md bg-background-card shadow-xl rounded-3xl z-50 flex flex-col overflow-hidden border border-border-default">
         <div className="px-8 pt-8 pb-4 flex-shrink-0">
-          <h2 className="text-base font-semibold text-gray-900 dark:text-white">Restore Files</h2>
-          <div className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+          <h2 className="text-base font-semibold text-text-default">Restore Files</h2>
+          <div className="mt-4 text-sm text-text-muted">
             <p>The following files will be restored to their earlier versions:</p>
             <ul className="mt-2">
               {files.map((file, i) => (
@@ -79,14 +79,14 @@ const RestoreModal: FC<RestoreModalProps> = ({ files, onConfirm, onClose }) => {
           <Button
             onClick={handleConfirm}
             variant="ghost"
-            className="w-full h-[60px] border-t text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-800 dark:border-gray-600 text-lg font-medium transition-colors"
+            className="w-full h-[60px] border-t border-border-default text-text-default hover:bg-background-muted text-lg font-medium transition-colors"
           >
             Restore
           </Button>
           <Button
             onClick={onClose}
             variant="ghost"
-            className="w-full h-[60px] border-t text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 dark:border-gray-600 text-lg font-regular transition-colors"
+            className="w-full h-[60px] border-t border-border-default text-text-muted hover:bg-background-muted text-lg font-regular transition-colors"
           >
             Cancel
           </Button>
