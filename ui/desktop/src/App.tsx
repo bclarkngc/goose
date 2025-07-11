@@ -6,7 +6,7 @@ import { HashRouter, Routes, Route, useNavigate, useLocation } from 'react-route
 const ConditionalSidecarProvider = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
   
-  // Only show sidecar on chat routes (index and pair)
+  // Only show sidecar on specific chat routes, not on welcome/onboarding pages
   const showSidecar = location.pathname === '/' || location.pathname === '/pair';
   
   return (
