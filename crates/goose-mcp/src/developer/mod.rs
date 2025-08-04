@@ -6,11 +6,12 @@ use anyhow::Result;
 use base64::Engine;
 use etcetera::{choose_app_strategy, AppStrategy};
 use indoc::formatdoc;
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::{
     collections::HashMap,
+    fs::File,
     future::Future,
-    io::Cursor,
+    io::{Cursor, Read},
     path::{Path, PathBuf},
     pin::Pin,
 };
@@ -23,20 +24,18 @@ use url::Url;
 
 use include_dir::{include_dir, Dir};
 use mcp_core::{
-    handler::{PromptError, ResourceError, ToolError},
-    protocol::{JsonRpcMessage, JsonRpcNotification, ServerCapabilities},
-    resource::Resource,
-    tool::Tool,
-    Content,
+    handler::{require_str_parameter, PromptError, ResourceError, ToolError},
+    protocol::ServerCapabilities,
 };
-use mcp_core::{
-    prompt::{Prompt, PromptArgument, PromptTemplate},
-    tool::ToolAnnotations,
-};
+
 use mcp_server::router::CapabilitiesBuilder;
 use mcp_server::Router;
 
-use mcp_core::role::Role;
+use rmcp::model::{
+    Content, JsonRpcMessage, JsonRpcNotification, JsonRpcVersion2_0, Notification, Prompt,
+    PromptArgument, PromptTemplate, Resource, Role, Tool, ToolAnnotations,
+};
+use rmcp::object;
 
 use self::editor_models::{create_editor_model, EditorModel};
 use self::shell::{expand_path, get_shell_config, is_absolute_path, normalize_line_endings};
@@ -167,14 +166,13 @@ impl DeveloperRouter {
         let bash_tool = Tool::new(
             "shell".to_string(),
             shell_tool_desc.to_string(),
-            json!({
+            object!({
                 "type": "object",
                 "required": ["command"],
                 "properties": {
                     "command": {"type": "string"}
                 }
             }),
-            None,
         );
 
         let glob_tool = Tool::new(
@@ -194,22 +192,21 @@ impl DeveloperRouter {
                 
                 Use this tool when you need to locate files by name patterns rather than content.
             "#}.to_string(),
-            json!({
+            object!({
                 "type": "object",
                 "required": ["pattern"],
                 "properties": {
                     "pattern": {"type": "string", "description": "The glob pattern to search for"},
                     "path": {"type": "string", "description": "The directory to search in (defaults to current directory)"}
                 }
-            }),
-            Some(ToolAnnotations {
-                title: Some("Search files by pattern".to_string()),
-                read_only_hint: true,
-                destructive_hint: false,
-                idempotent_hint: true,
-                open_world_hint: false,
-            }),
-        );
+            })
+        ).annotate(ToolAnnotations {
+            title: Some("Search files by pattern".to_string()),
+            read_only_hint: Some(true),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(true),
+            open_world_hint: Some(false),
+        });
 
         let grep_tool = Tool::new(
             "grep".to_string(),
@@ -243,21 +240,20 @@ impl DeveloperRouter {
                 properly filters results to respect ignored files.
             "#}
             .to_string(),
-            json!({
+            object!({
                 "type": "object",
                 "required": ["command"],
                 "properties": {
                     "command": {"type": "string", "description": "The search command to execute (rg, grep, find, etc.)"}
                 }
-            }),
-            Some(ToolAnnotations {
-                title: Some("Search file contents".to_string()),
-                read_only_hint: true,
-                destructive_hint: false,
-                idempotent_hint: true,
-                open_world_hint: false,
-            }),
-        );
+            })
+        ).annotate(ToolAnnotations {
+            title: Some("Search file contents".to_string()),
+            read_only_hint: Some(true),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(true),
+            open_world_hint: Some(false),
+        });
 
         // Create text editor tool with different descriptions based on editor API configuration
         let (text_editor_desc, str_replace_command) = if let Some(ref editor) = editor_model {
@@ -308,7 +304,7 @@ impl DeveloperRouter {
         let text_editor_tool = Tool::new(
             "text_editor".to_string(),
             text_editor_desc.to_string(),
-            json!({
+            object!({
                 "type": "object",
                 "required": ["command", "path"],
                 "properties": {
@@ -337,7 +333,6 @@ impl DeveloperRouter {
                     "file_text": {"type": "string"}
                 }
             }),
-            None,
         );
 
         let list_windows_tool = Tool::new(
@@ -347,19 +342,19 @@ impl DeveloperRouter {
                 Returns a list of window titles that can be used with the window_title parameter
                 of the screen_capture tool.
             "#},
-            json!({
+            object!({
                 "type": "object",
                 "required": [],
                 "properties": {}
             }),
-            Some(ToolAnnotations {
-                title: Some("List available windows".to_string()),
-                read_only_hint: true,
-                destructive_hint: false,
-                idempotent_hint: false,
-                open_world_hint: false,
-            }),
-        );
+        )
+        .annotate(ToolAnnotations {
+            title: Some("List available windows".to_string()),
+            read_only_hint: Some(true),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(false),
+            open_world_hint: Some(false),
+        });
 
         let screen_capture_tool = Tool::new(
             "screen_capture",
@@ -371,7 +366,7 @@ impl DeveloperRouter {
 
                 Only one of display or window_title should be specified.
             "#},
-            json!({
+            object!({
                 "type": "object",
                 "required": [],
                 "properties": {
@@ -386,15 +381,14 @@ impl DeveloperRouter {
                         "description": "Optional: the exact title of the window to capture. use the list_windows tool to find the available windows."
                     }
                 }
-            }),
-            Some(ToolAnnotations {
-                title: Some("Capture a full screen".to_string()),
-                read_only_hint: true,
-                destructive_hint: false,
-                idempotent_hint: false,
-                open_world_hint: false,
-            }),
-        );
+            })
+        ).annotate(ToolAnnotations {
+            title: Some("Capture a full screen".to_string()),
+            read_only_hint: Some(true),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(false),
+            open_world_hint: Some(false),
+        });
 
         let image_processor_tool = Tool::new(
             "image_processor",
@@ -406,7 +400,7 @@ impl DeveloperRouter {
 
                 This allows processing image files for use in the conversation.
             "#},
-            json!({
+            object!({
                 "type": "object",
                 "required": ["path"],
                 "properties": {
@@ -416,14 +410,14 @@ impl DeveloperRouter {
                     }
                 }
             }),
-            Some(ToolAnnotations {
-                title: Some("Process Image".to_string()),
-                read_only_hint: true,
-                destructive_hint: false,
-                idempotent_hint: true,
-                open_world_hint: false,
-            }),
-        );
+        )
+        .annotate(ToolAnnotations {
+            title: Some("Process Image".to_string()),
+            read_only_hint: Some(true),
+            destructive_hint: Some(false),
+            idempotent_hint: Some(true),
+            open_world_hint: Some(false),
+        });
 
         // Get base instructions and working directory
         let cwd = std::env::current_dir().expect("should have a current working dir");
@@ -468,40 +462,57 @@ impl DeveloperRouter {
             },
         };
 
-        // choose_app_strategy().config_dir()
-        // - macOS/Linux: ~/.config/goose/
-        // - Windows:     ~\AppData\Roaming\Block\goose\config\
-        // keep previous behavior of expanding ~/.config in case this fails
-        let global_hints_path = choose_app_strategy(crate::APP_STRATEGY.clone())
-            .map(|strategy| strategy.in_config_dir(".goosehints"))
-            .unwrap_or_else(|_| {
-                PathBuf::from(shellexpand::tilde("~/.config/goose/.goosehints").to_string())
-            });
+        let hints_filenames: Vec<String> = std::env::var("CONTEXT_FILE_NAMES")
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_else(|| vec![".goosehints".to_string()]);
 
-        // Create the directory if it doesn't exist
-        let _ = std::fs::create_dir_all(global_hints_path.parent().unwrap());
+        let mut global_hints_contents = Vec::with_capacity(hints_filenames.len());
+        let mut local_hints_contents = Vec::with_capacity(hints_filenames.len());
 
-        // Check for local hints in current directory
-        let local_hints_path = cwd.join(".goosehints");
+        for hints_filename in &hints_filenames {
+            // Global hints
+            // choose_app_strategy().config_dir()
+            // - macOS/Linux: ~/.config/goose/
+            // - Windows:     ~\AppData\Roaming\Block\goose\config\
+            // keep previous behavior of expanding ~/.config in case this fails
+            let global_hints_path = choose_app_strategy(crate::APP_STRATEGY.clone())
+                .map(|strategy| strategy.in_config_dir(hints_filename))
+                .unwrap_or_else(|_| {
+                    let path_str = format!("~/.config/goose/{}", hints_filename);
+                    PathBuf::from(shellexpand::tilde(&path_str).to_string())
+                });
 
-        // Read global hints if they exist
-        let mut hints = String::new();
-        if global_hints_path.is_file() {
-            if let Ok(global_hints) = std::fs::read_to_string(&global_hints_path) {
-                hints.push_str("\n### Global Hints\nThe developer extension includes some global hints that apply to all projects & directories.\n");
-                hints.push_str(&global_hints);
+            if let Some(parent) = global_hints_path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+
+            if global_hints_path.is_file() {
+                if let Ok(content) = std::fs::read_to_string(&global_hints_path) {
+                    global_hints_contents.push(content);
+                }
+            }
+
+            let local_hints_path = cwd.join(hints_filename);
+            if local_hints_path.is_file() {
+                if let Ok(content) = std::fs::read_to_string(&local_hints_path) {
+                    local_hints_contents.push(content);
+                }
             }
         }
 
-        // Read local hints if they exist
-        if local_hints_path.is_file() {
-            if let Ok(local_hints) = std::fs::read_to_string(&local_hints_path) {
-                if !hints.is_empty() {
-                    hints.push_str("\n\n");
-                }
-                hints.push_str("### Project Hints\nThe developer extension includes some hints for working on the project in this directory.\n");
-                hints.push_str(&local_hints);
+        let mut hints = String::new();
+        if !global_hints_contents.is_empty() {
+            hints.push_str("\n### Global Hints\nThe developer extension includes some global hints that apply to all projects & directories.\n");
+            hints.push_str(&global_hints_contents.join("\n"));
+        }
+
+        if !local_hints_contents.is_empty() {
+            if !hints.is_empty() {
+                hints.push_str("\n\n");
             }
+            hints.push_str("### Project Hints\nThe developer extension includes some hints for working on the project in this directory.\n");
+            hints.push_str(&local_hints_contents.join("\n"));
         }
 
         // Return base instructions directly when no hints are found
@@ -582,6 +593,46 @@ impl DeveloperRouter {
     // Helper method to check if a path should be ignored
     fn is_ignored(&self, path: &Path) -> bool {
         self.ignore_patterns.matched(path, false).is_ignore()
+    }
+
+    // shell output can be large, this will help manage that
+    fn process_shell_output(&self, output_str: &str) -> Result<(String, String), ToolError> {
+        let lines: Vec<&str> = output_str.lines().collect();
+        let line_count = lines.len();
+
+        let start = lines.len().saturating_sub(100);
+        let last_100_lines_str = lines[start..].join("\n");
+
+        let final_output = if line_count > 100 {
+            let tmp_file = tempfile::NamedTempFile::new().map_err(|e| {
+                ToolError::ExecutionError(format!("Failed to create temporary file: {}", e))
+            })?;
+
+            std::fs::write(tmp_file.path(), output_str).map_err(|e| {
+                ToolError::ExecutionError(format!("Failed to write to temporary file: {}", e))
+            })?;
+
+            let (_, path) = tmp_file.keep().map_err(|e| {
+                ToolError::ExecutionError(format!("Failed to persist temporary file: {}", e))
+            })?;
+
+            format!(
+                "private note: output was {} lines and we are only showing the most recent lines, remainder of lines in {} do not show tmp file to user, that file can be searched if extra context needed to fulfill request. truncated output: \n{}",
+                line_count,
+                path.display(),
+                last_100_lines_str
+            )
+        } else {
+            output_str.to_string()
+        };
+
+        let user_output = if line_count > 100 {
+            format!("... \n{}", last_100_lines_str)
+        } else {
+            output_str.to_string()
+        };
+
+        Ok((final_output, user_output))
     }
 
     // Helper method to resolve a path relative to cwd with platform-specific handling
@@ -675,15 +726,19 @@ impl DeveloperRouter {
                             let line = String::from_utf8_lossy(&stdout_buf);
 
                             notifier.try_send(JsonRpcMessage::Notification(JsonRpcNotification {
-                                jsonrpc: "2.0".to_string(),
-                                method: "notifications/message".to_string(),
-                                params: Some(json!({
-                                    "data": {
-                                        "type": "shell",
-                                        "stream": "stdout",
-                                        "output": line.to_string(),
-                                    }
-                                })),
+                                jsonrpc: JsonRpcVersion2_0,
+                                notification: Notification {
+                                    method: "notifications/message".to_string(),
+                                    params: object!({
+                                        "level": "info",
+                                        "data": {
+                                            "type": "shell",
+                                            "stream": "stdout",
+                                            "output": line.to_string(),
+                                        }
+                                    }),
+                                    extensions: Default::default(),
+                                }
                             })).ok();
 
                             combined_output.push_str(&line);
@@ -698,15 +753,19 @@ impl DeveloperRouter {
                             let line = String::from_utf8_lossy(&stderr_buf);
 
                             notifier.try_send(JsonRpcMessage::Notification(JsonRpcNotification {
-                                jsonrpc: "2.0".to_string(),
-                                method: "notifications/message".to_string(),
-                                params: Some(json!({
-                                    "data": {
-                                        "type": "shell",
-                                        "stream": "stderr",
-                                        "output": line.to_string(),
-                                    }
-                                })),
+                                jsonrpc: JsonRpcVersion2_0,
+                                notification: Notification {
+                                    method: "notifications/message".to_string(),
+                                    params: object!({
+                                        "level": "info",
+                                        "data": {
+                                            "type": "shell",
+                                            "stream": "stderr",
+                                            "output": line.to_string(),
+                                        }
+                                    }),
+                                    extensions: Default::default(),
+                                }
                             })).ok();
 
                             combined_output.push_str(&line);
@@ -747,9 +806,11 @@ impl DeveloperRouter {
                 )));
         }
 
+        let (final_output, user_output) = self.process_shell_output(&output_str)?;
+
         Ok(vec![
-            Content::text(output_str.clone()).with_audience(vec![Role::Assistant]),
-            Content::text(output_str)
+            Content::text(final_output).with_audience(vec![Role::Assistant]),
+            Content::text(user_output)
                 .with_audience(vec![Role::User])
                 .with_priority(0.0),
         ])
@@ -858,12 +919,7 @@ impl DeveloperRouter {
                 self.text_editor_view(&path, view_range).await
             }
             "write" => {
-                let file_text = params
-                    .get("file_text")
-                    .and_then(|v| v.as_str())
-                    .ok_or_else(|| {
-                        ToolError::InvalidParameters("Missing 'file_text' parameter".into())
-                    })?;
+                let file_text = require_str_parameter(&params, "file_text")?;
 
                 self.text_editor_write(&path, file_text).await
             }
@@ -915,9 +971,12 @@ impl DeveloperRouter {
         if path.is_file() {
             // Check file size first (400KB limit)
             const MAX_FILE_SIZE: u64 = 400 * 1024; // 400KB in bytes
-            const MAX_CHAR_COUNT: usize = 400_000; // 409600 chars = 400KB
 
-            let file_size = std::fs::metadata(path)
+            let f = File::open(path)
+                .map_err(|e| ToolError::ExecutionError(format!("Failed to open file: {}", e)))?;
+
+            let file_size = f
+                .metadata()
                 .map_err(|e| {
                     ToolError::ExecutionError(format!("Failed to get file metadata: {}", e))
                 })?
@@ -930,23 +989,17 @@ impl DeveloperRouter {
                     file_size as f64 / 1024.0
                 )));
             }
+            // Ensure we never read over that limit even if the file is being concurrently mutated
+            // (e.g. it's a log file)
+            let mut f = f.take(MAX_FILE_SIZE);
 
             let uri = Url::from_file_path(path)
                 .map_err(|_| ToolError::ExecutionError("Invalid file path".into()))?
                 .to_string();
 
-            let content = std::fs::read_to_string(path)
+            let mut content = String::new();
+            f.read_to_string(&mut content)
                 .map_err(|e| ToolError::ExecutionError(format!("Failed to read file: {}", e)))?;
-
-            let char_count = content.chars().count();
-            if char_count > MAX_CHAR_COUNT {
-                return Err(ToolError::ExecutionError(format!(
-                    "File '{}' has too many characters ({}). Maximum character count is {}.",
-                    path.display(),
-                    char_count,
-                    MAX_CHAR_COUNT
-                )));
-            }
 
             let lines: Vec<&str> = content.lines().collect();
             let total_lines = lines.len();
@@ -1655,9 +1708,10 @@ impl Clone for DeveloperRouter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core::panic;
     use serde_json::json;
     use serial_test::serial;
-    use std::fs;
+    use std::fs::{self, read_to_string};
     use tempfile::TempDir;
     use tokio::sync::OnceCell;
 
@@ -1748,6 +1802,39 @@ mod tests {
         temp_dir.close().unwrap();
     }
 
+    #[test]
+    #[serial]
+    fn test_goosehints_multiple_filenames() {
+        let dir = TempDir::new().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+        std::env::set_var("CONTEXT_FILE_NAMES", r#"["CLAUDE.md", ".goosehints"]"#);
+
+        fs::write("CLAUDE.md", "Custom hints file content from CLAUDE.md").unwrap();
+        fs::write(".goosehints", "Custom hints file content from .goosehints").unwrap();
+        let router = DeveloperRouter::new();
+        let instructions = router.instructions();
+
+        assert!(instructions.contains("Custom hints file content from CLAUDE.md"));
+        assert!(instructions.contains("Custom hints file content from .goosehints"));
+        std::env::remove_var("CONTEXT_FILE_NAMES");
+    }
+
+    #[test]
+    #[serial]
+    fn test_goosehints_configurable_filename() {
+        let dir = TempDir::new().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+        std::env::set_var("CONTEXT_FILE_NAMES", r#"["CLAUDE.md"]"#);
+
+        fs::write("CLAUDE.md", "Custom hints file content").unwrap();
+        let router = DeveloperRouter::new();
+        let instructions = router.instructions();
+
+        assert!(instructions.contains("Custom hints file content"));
+        assert!(!instructions.contains(".goosehints")); // Make sure it's not loading the default
+        std::env::remove_var("CONTEXT_FILE_NAMES");
+    }
+
     #[tokio::test]
     #[serial]
     #[cfg(windows)]
@@ -1815,8 +1902,8 @@ mod tests {
             let many_chars_path = temp_dir.path().join("many_chars.txt");
             let many_chars_str = many_chars_path.to_str().unwrap();
 
-            // Create a file with more than 400K characters but less than 400KB
-            let content = "x".repeat(405_000);
+            // This is above MAX_FILE_SIZE
+            let content = "x".repeat(500_000);
             std::fs::write(&many_chars_path, content).unwrap();
 
             let result = router
@@ -1833,7 +1920,7 @@ mod tests {
             assert!(result.is_err());
             let err = result.err().unwrap();
             assert!(matches!(err, ToolError::ExecutionError(_)));
-            assert!(err.to_string().contains("too many characters"));
+            assert!(err.to_string().contains("is too large"));
         }
 
         // Let temp_dir drop naturally at end of scope
@@ -1886,7 +1973,7 @@ mod tests {
             .unwrap()
             .as_text()
             .unwrap();
-        assert!(text.contains("Hello, world!"));
+        assert!(text.text.contains("Hello, world!"));
 
         temp_dir.close().unwrap();
     }
@@ -1940,7 +2027,9 @@ mod tests {
             .as_text()
             .unwrap();
 
-        assert!(text.contains("has been edited, and the section now reads"));
+        assert!(text
+            .text
+            .contains("has been edited, and the section now reads"));
 
         // View the file to verify the change
         let view_result = router
@@ -1968,9 +2057,9 @@ mod tests {
         // Check that the file has been modified and contains some form of "Rust"
         // The Editor API might transform the content differently than simple string replacement
         assert!(
-            text.contains("Rust") || text.contains("Hello, Rust!"),
+            text.text.contains("Rust") || text.text.contains("Hello, Rust!"),
             "Expected content to contain 'Rust', but got: {}",
-            text
+            text.text
         );
 
         temp_dir.close().unwrap();
@@ -2029,7 +2118,7 @@ mod tests {
             .unwrap();
 
         let text = undo_result.first().unwrap().as_text().unwrap();
-        assert!(text.contains("Undid the last edit"));
+        assert!(text.text.contains("Undid the last edit"));
 
         // View the file to verify the undo
         let view_result = router
@@ -2053,7 +2142,7 @@ mod tests {
             .unwrap()
             .as_text()
             .unwrap();
-        assert!(text.contains("First line"));
+        assert!(text.text.contains("First line"));
 
         temp_dir.close().unwrap();
     }
@@ -2335,20 +2424,34 @@ mod tests {
         // Should use traditional description with str_replace command
         assert!(text_editor_tool
             .description
-            .contains("Replace a string in a file with a new string"));
+            .as_ref()
+            .map_or(false, |desc| desc
+                .contains("Replace a string in a file with a new string")));
         assert!(text_editor_tool
             .description
-            .contains("the `old_str` needs to exactly match one"));
-        assert!(text_editor_tool.description.contains("str_replace"));
+            .as_ref()
+            .map_or(false, |desc| desc
+                .contains("the `old_str` needs to exactly match one")));
+        assert!(text_editor_tool
+            .description
+            .as_ref()
+            .map_or(false, |desc| desc.contains("str_replace")));
 
         // Should not contain editor API description or edit_file command
         assert!(!text_editor_tool
             .description
-            .contains("Edit the file with the new content"));
-        assert!(!text_editor_tool.description.contains("edit_file"));
+            .as_ref()
+            .map_or(false, |desc| desc
+                .contains("Edit the file with the new content")));
         assert!(!text_editor_tool
             .description
-            .contains("work out how to place old_str with it intelligently"));
+            .as_ref()
+            .map_or(false, |desc| desc.contains("edit_file")));
+        assert!(!text_editor_tool
+            .description
+            .as_ref()
+            .map_or(false, |desc| desc
+                .contains("work out how to place old_str with it intelligently")));
 
         temp_dir.close().unwrap();
     }
@@ -2507,14 +2610,14 @@ mod tests {
             .unwrap();
 
         // Should contain lines 3-6 with line numbers
-        assert!(text.contains("3: Line 3"));
-        assert!(text.contains("4: Line 4"));
-        assert!(text.contains("5: Line 5"));
-        assert!(text.contains("6: Line 6"));
-        assert!(text.contains("(lines 3-6)"));
+        assert!(text.text.contains("3: Line 3"));
+        assert!(text.text.contains("4: Line 4"));
+        assert!(text.text.contains("5: Line 5"));
+        assert!(text.text.contains("6: Line 6"));
+        assert!(text.text.contains("(lines 3-6)"));
         // Should not contain other lines
-        assert!(!text.contains("1: Line 1"));
-        assert!(!text.contains("7: Line 7"));
+        assert!(!text.text.contains("1: Line 1"));
+        assert!(!text.text.contains("7: Line 7"));
 
         temp_dir.close().unwrap();
     }
@@ -2569,13 +2672,13 @@ mod tests {
             .unwrap();
 
         // Should contain lines 3 to end
-        assert!(text.contains("3: Line 3"));
-        assert!(text.contains("4: Line 4"));
-        assert!(text.contains("5: Line 5"));
-        assert!(text.contains("(lines 3-end)"));
+        assert!(text.text.contains("3: Line 3"));
+        assert!(text.text.contains("4: Line 4"));
+        assert!(text.text.contains("5: Line 5"));
+        assert!(text.text.contains("(lines 3-end)"));
         // Should not contain earlier lines
-        assert!(!text.contains("1: Line 1"));
-        assert!(!text.contains("2: Line 2"));
+        assert!(!text.text.contains("1: Line 1"));
+        assert!(!text.text.contains("2: Line 2"));
 
         temp_dir.close().unwrap();
     }
@@ -2695,7 +2798,7 @@ mod tests {
             .as_text()
             .unwrap();
 
-        assert!(text.contains("Text has been inserted at line 1"));
+        assert!(text.text.contains("Text has been inserted at line 1"));
 
         // Verify the file content
         let view_result = router
@@ -2720,10 +2823,10 @@ mod tests {
             .as_text()
             .unwrap();
 
-        assert!(view_text.contains("1: Line 1"));
-        assert!(view_text.contains("2: Line 2"));
-        assert!(view_text.contains("3: Line 3"));
-        assert!(view_text.contains("4: Line 4"));
+        assert!(view_text.text.contains("1: Line 1"));
+        assert!(view_text.text.contains("2: Line 2"));
+        assert!(view_text.text.contains("3: Line 3"));
+        assert!(view_text.text.contains("4: Line 4"));
 
         temp_dir.close().unwrap();
     }
@@ -2778,7 +2881,7 @@ mod tests {
             .as_text()
             .unwrap();
 
-        assert!(text.contains("Text has been inserted at line 3"));
+        assert!(text.text.contains("Text has been inserted at line 3"));
 
         // Verify the file content
         let view_result = router
@@ -2803,11 +2906,11 @@ mod tests {
             .as_text()
             .unwrap();
 
-        assert!(view_text.contains("1: Line 1"));
-        assert!(view_text.contains("2: Line 2"));
-        assert!(view_text.contains("3: Line 3"));
-        assert!(view_text.contains("4: Line 4"));
-        assert!(view_text.contains("5: Line 5"));
+        assert!(view_text.text.contains("1: Line 1"));
+        assert!(view_text.text.contains("2: Line 2"));
+        assert!(view_text.text.contains("3: Line 3"));
+        assert!(view_text.text.contains("4: Line 4"));
+        assert!(view_text.text.contains("5: Line 5"));
 
         temp_dir.close().unwrap();
     }
@@ -2862,7 +2965,7 @@ mod tests {
             .as_text()
             .unwrap();
 
-        assert!(text.contains("Text has been inserted at line 4"));
+        assert!(text.text.contains("Text has been inserted at line 4"));
 
         // Verify the file content
         let view_result = router
@@ -2887,10 +2990,10 @@ mod tests {
             .as_text()
             .unwrap();
 
-        assert!(view_text.contains("1: Line 1"));
-        assert!(view_text.contains("2: Line 2"));
-        assert!(view_text.contains("3: Line 3"));
-        assert!(view_text.contains("4: Line 4"));
+        assert!(view_text.text.contains("1: Line 1"));
+        assert!(view_text.text.contains("2: Line 2"));
+        assert!(view_text.text.contains("3: Line 3"));
+        assert!(view_text.text.contains("4: Line 4"));
 
         temp_dir.close().unwrap();
     }
@@ -3059,7 +3162,7 @@ mod tests {
             .unwrap();
 
         let text = undo_result.first().unwrap().as_text().unwrap();
-        assert!(text.contains("Undid the last edit"));
+        assert!(text.text.contains("Undid the last edit"));
 
         // Verify the file is back to original content
         let view_result = router
@@ -3084,9 +3187,9 @@ mod tests {
             .as_text()
             .unwrap();
 
-        assert!(view_text.contains("1: Line 1"));
-        assert!(view_text.contains("2: Line 2"));
-        assert!(!view_text.contains("Inserted Line"));
+        assert!(view_text.text.contains("1: Line 1"));
+        assert!(view_text.text.contains("2: Line 2"));
+        assert!(!view_text.text.contains("Inserted Line"));
 
         temp_dir.close().unwrap();
     }
@@ -3121,5 +3224,128 @@ mod tests {
         assert!(err.to_string().contains("does not exist"));
 
         temp_dir.close().unwrap();
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_bash_output_truncation() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        let router = get_router().await;
+
+        // Create a command that generates > 100 lines of output
+        let command = if cfg!(windows) {
+            "for /L %i in (1,1,150) do @echo Line %i"
+        } else {
+            "for i in {1..150}; do echo \"Line $i\"; done"
+        };
+
+        let result = router
+            .call_tool("shell", json!({ "command": command }), dummy_sender())
+            .await
+            .unwrap();
+
+        // Should have two Content items
+        assert_eq!(result.len(), 2);
+
+        // Find the Assistant and User content
+        let assistant_content = result
+            .iter()
+            .find(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::Assistant))
+            })
+            .unwrap()
+            .as_text()
+            .unwrap();
+
+        let user_content = result
+            .iter()
+            .find(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::User))
+            })
+            .unwrap()
+            .as_text()
+            .unwrap();
+
+        // Assistant should get the full message with temp file info
+        assert!(assistant_content.text.contains("private note: output was"));
+
+        // User should only get the truncated output with prefix
+        assert!(user_content.text.starts_with("..."));
+        assert!(!user_content.text.contains("private note: output was"));
+
+        // User output should contain lines 51-150 (last 100 lines)
+        assert!(user_content.text.contains("Line 51"));
+        assert!(user_content.text.contains("Line 150"));
+        assert!(!user_content.text.contains("Line 50"));
+
+        let start_tag = "remainder of lines in";
+        let end_tag = "do not show tmp file to user";
+
+        if let (Some(start), Some(end)) = (
+            assistant_content.text.find(start_tag),
+            assistant_content.text.find(end_tag),
+        ) {
+            let start_idx = start + start_tag.len();
+            if start_idx < end {
+                let path = assistant_content.text[start_idx..end].trim();
+                println!("Extracted path: {}", path);
+
+                let file_contents =
+                    read_to_string(path).expect("Failed to read extracted temp file");
+
+                let lines: Vec<&str> = file_contents.lines().collect();
+
+                // Ensure we have exactly 150 lines
+                assert_eq!(lines.len(), 150, "Expected 150 lines in temp file");
+
+                // Ensure the first and last lines are correct
+                assert_eq!(lines.first(), Some(&"Line 1"), "First line mismatch");
+                assert_eq!(lines.last(), Some(&"Line 150"), "Last line mismatch");
+            } else {
+                panic!("No path found in bash output truncation output");
+            }
+        } else {
+            panic!("Failed to find start or end tag in bash output truncation output");
+        }
+
+        temp_dir.close().unwrap();
+    }
+
+    #[test]
+    #[serial]
+    fn test_process_shell_output_short() {
+        let dir = TempDir::new().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+
+        let router = DeveloperRouter::new();
+
+        // Test with short output (< 100 lines)
+        let short_output = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5";
+        let result = router.process_shell_output(short_output).unwrap();
+
+        // Both outputs should be the same for short outputs
+        assert_eq!(result.0, short_output);
+        assert_eq!(result.1, short_output);
+    }
+
+    #[test]
+    #[serial]
+    fn test_process_shell_output_empty() {
+        let dir = TempDir::new().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+
+        let router = DeveloperRouter::new();
+
+        // Test with empty output
+        let empty_output = "";
+        let result = router.process_shell_output(empty_output).unwrap();
+
+        // Both outputs should be empty
+        assert_eq!(result.0, "");
+        assert_eq!(result.1, "");
     }
 }

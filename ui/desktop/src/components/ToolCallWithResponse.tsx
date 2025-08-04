@@ -6,7 +6,9 @@ import { Content, ToolRequestMessageContent, ToolResponseMessageContent } from '
 import { cn, snakeToTitleCase } from '../utils';
 import Dot, { LoadingStatus } from './ui/Dot';
 import { NotificationEvent } from '../hooks/useMessageStream';
-import { ChevronRight, LoaderCircle } from 'lucide-react';
+import { ChevronRight, FlaskConical, LoaderCircle } from 'lucide-react';
+import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
+import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
@@ -29,15 +31,47 @@ export default function ToolCallWithResponse({
   }
 
   return (
-    <div
-      className={cn(
-        'w-full text-sm rounded-lg overflow-hidden border-borderSubtle border bg-background-muted'
-      )}
-    >
-      <ToolCallView
-        {...{ isCancelledMessage, toolCall, toolResponse, notifications, isStreamingMessage }}
-      />
-    </div>
+    <>
+      <div
+        className={cn(
+          'w-full text-sm rounded-lg overflow-hidden border-borderSubtle border bg-background-muted'
+        )}
+      >
+        <ToolCallView
+          {...{
+            isCancelledMessage,
+            toolCall,
+            toolResponse,
+            notifications,
+            isStreamingMessage,
+          }}
+        />
+      </div>
+      {/* MCP UI — Inline */}
+      {toolResponse?.toolResult?.value &&
+        toolResponse.toolResult.value.map((content, index, results) => {
+          if (content.type === 'resource' && content.resource.uri?.startsWith('ui://')) {
+            if (index === results.length - 1) {
+              return (
+                <>
+                  <MCPUIResourceRenderer key={`${content.type}-${index}`} content={content} />
+                  {/* Append a disclaimer if this is the last item in the array */}
+                  <div className="mt-3 p-4 py-3 border border-borderSubtle rounded-lg bg-background-muted flex items-center">
+                    <FlaskConical className="mr-2" size={20} />
+                    <div className="text-sm font-medium mono">
+                      MCP UI is experimental and may change at any time.
+                    </div>
+                  </div>
+                </>
+              );
+            } else {
+              return <MCPUIResourceRenderer key={`${content.type}-${index}`} content={content} />;
+            }
+          } else {
+            return null;
+          }
+        })}
+    </>
   );
 }
 
@@ -120,6 +154,17 @@ const logToString = (logMessage: NotificationEvent) => {
 
 const notificationToProgress = (notification: NotificationEvent): Progress =>
   notification.message.params as unknown as Progress;
+
+// Helper function to extract extension name for tooltip
+const getExtensionTooltip = (toolCallName: string): string | null => {
+  const lastIndex = toolCallName.lastIndexOf('__');
+  if (lastIndex === -1) return null;
+
+  const extensionName = toolCallName.substring(0, lastIndex);
+  if (!extensionName) return null;
+
+  return `${extensionName} extension`;
+};
 
 function ToolCallView({
   isCancelledMessage,
@@ -365,7 +410,7 @@ function ToolCallView({
         // This ensures any MCP tool works without explicit handling
         const toolDisplayName = snakeToTitleCase(toolName);
         const entries = Object.entries(args);
-        
+
         if (entries.length === 0) {
           return `${toolDisplayName}`;
         }
@@ -387,6 +432,25 @@ function ToolCallView({
     return null;
   };
 
+  // Get extension tooltip for the current tool
+  const extensionTooltip = getExtensionTooltip(toolCall.name);
+
+  // Extract tool label content to avoid duplication
+  const getToolLabelContent = () => {
+    const description = getToolDescription();
+    if (description) {
+      return description;
+    }
+    // Fallback tool name formatting
+    return snakeToTitleCase(toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2));
+  };
+
+  const toolLabel = (
+    <span className={cn('ml-2', extensionTooltip && 'cursor-pointer hover:opacity-80')}>
+      {getToolLabelContent()}
+    </span>
+  );
+
   return (
     <ToolCallExpandable
       isStartExpanded={isRenderingProgress}
@@ -400,16 +464,13 @@ function ToolCallView({
               <Dot size={2} loadingStatus={loadingStatus} />
             )}
           </div>
-          <span className="ml-2">
-            {(() => {
-              const description = getToolDescription();
-              if (description) {
-                return description;
-              }
-              // Fallback tool name formatting
-              return snakeToTitleCase(toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2));
-            })()}
-          </span>
+          {extensionTooltip ? (
+            <TooltipWrapper tooltipContent={extensionTooltip} side="top" align="start">
+              {toolLabel}
+            </TooltipWrapper>
+          ) : (
+            toolLabel
+          )}
         </>
       }
     >
@@ -508,6 +569,7 @@ function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
             }}
           />
         )}
+        {result.type === 'resource' && <pre>{JSON.stringify(result, null, 2)}</pre>}
       </div>
     </ToolCallExpandable>
   );

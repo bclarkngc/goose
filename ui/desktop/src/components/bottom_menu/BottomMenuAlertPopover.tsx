@@ -12,10 +12,10 @@ interface AlertPopoverProps {
 
 export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [hasShownInitial, setHasShownInitial] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [wasAutoShown, setWasAutoShown] = useState(false);
   const [popoverPosition, setPopoverPosition] = useState({ top: 0, left: 0 });
+  const [shouldShowIndicator, setShouldShowIndicator] = useState(false); // Stable indicator state
   const previousAlertsRef = useRef<Alert[]>([]);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -91,9 +91,18 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
     }, duration);
   }, []);
 
+  // Manage stable indicator visibility - once we have alerts, keep showing until explicitly cleared
+  useEffect(() => {
+    if (alerts.length > 0) {
+      setShouldShowIndicator(true);
+    }
+  }, [alerts.length]);
+
   // Handle initial show and new alerts
   useEffect(() => {
-    if (alerts.length === 0) return;
+    if (alerts.length === 0) {
+      return;
+    }
 
     // Find new or changed alerts
     const changedAlerts = alerts.filter((alert, index) => {
@@ -106,17 +115,14 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
     // Only auto-show if any of the new/changed alerts have autoShow: true
     const hasNewAutoShowAlert = changedAlerts.some((alert) => alert.autoShow === true);
 
-    // Auto show the popover only if:
-    // 1. There are new alerts that should auto-show AND
-    // 2. We haven't shown this specific alert before (tracked by hasShownInitial)
-    if (hasNewAutoShowAlert && !hasShownInitial) {
+    // Auto show the popover for new auto-show alerts
+    if (hasNewAutoShowAlert) {
       setIsOpen(true);
-      setHasShownInitial(true);
       setWasAutoShown(true);
       // Start 3 second timer for auto-show
       startHideTimer(3000);
     }
-  }, [alerts, hasShownInitial, startHideTimer]);
+  }, [alerts, startHideTimer]);
 
   // Handle auto-hide based on hover state changes
   useEffect(() => {
@@ -144,14 +150,17 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
     };
   }, [isOpen]);
 
-  if (alerts.length === 0) return null;
+  // Use shouldShowIndicator instead of alerts.length for rendering decision
+  if (!shouldShowIndicator) {
+    return null;
+  }
 
-  // Determine the icon and styling based on the alerts
+  // Determine the icon and styling based on the alerts (use current alerts if available, or default to info)
   const hasError = alerts.some((alert) => alert.type === AlertType.Error);
   const hasInfo = alerts.some((alert) => alert.type === AlertType.Info);
   const triggerColor = hasError
     ? 'text-[#d7040e]' // Red color for error alerts
-    : hasInfo
+    : hasInfo || alerts.length === 0 // Default to green for context info when no alerts
       ? 'text-[#00b300]' // Green color for info alerts
       : 'text-[#cc4b03]'; // Orange color for warning alerts
 

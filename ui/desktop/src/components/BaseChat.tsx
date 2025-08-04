@@ -48,7 +48,7 @@ import { SearchView } from './conversation/SearchView';
 import { AgentHeader } from './AgentHeader';
 import LayingEggLoader from './LayingEggLoader';
 import LoadingGoose from './LoadingGoose';
-import Splash from './Splash';
+import RecipeActivities from './RecipeActivities';
 import PopularChatTopics from './PopularChatTopics';
 import ProgressiveMessageList from './ProgressiveMessageList';
 import { SessionSummaryModal } from './context_management/SessionSummaryModal';
@@ -60,25 +60,21 @@ import { type View, ViewOptions } from '../App';
 import { MainPanelLayout } from './Layout/MainPanelLayout';
 import ChatInput from './ChatInput';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
+import { RecipeWarningModal } from './ui/RecipeWarningModal';
+import ParameterInputModal from './ParameterInputModal';
 import { useChatEngine } from '../hooks/useChatEngine';
 import { useRecipeManager } from '../hooks/useRecipeManager';
 import { useSessionContinuation } from '../hooks/useSessionContinuation';
 import { useFileDrop } from '../hooks/useFileDrop';
 import { useCostTracking } from '../hooks/useCostTracking';
 import { Message } from '../types/message';
-import { Recipe } from '../recipe';
+import { ChatState } from '../types/chatState';
 
 // Context for sharing current model info
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
 export const useCurrentModelInfo = () => useContext(CurrentModelContext);
 
-export interface ChatType {
-  id: string;
-  title: string;
-  messageHistoryIndex: number;
-  messages: Message[];
-  recipeConfig?: Recipe | null; // Add recipe configuration to chat state
-}
+import { ChatType } from '../types/chat';
 
 interface BaseChatProps {
   chat: ChatType;
@@ -144,7 +140,7 @@ function BaseChatContent({
     ancestorMessages,
     setAncestorMessages,
     append,
-    isLoading,
+    chatState,
     error,
     setMessages,
     input: _input,
@@ -161,6 +157,7 @@ function BaseChatContent({
     updateMessageStreamBody,
     sessionMetadata,
     isUserMessage,
+    clearError,
   } = useChatEngine({
     chat,
     setChat,
@@ -192,29 +189,50 @@ function BaseChatContent({
     recipeConfig,
     initialPrompt,
     isGeneratingRecipe,
+    isParameterModalOpen,
+    setIsParameterModalOpen,
+    handleParameterSubmit,
     handleAutoExecution,
     recipeError,
     setRecipeError,
+    isRecipeWarningModalOpen,
+    recipeAccepted,
+    handleRecipeAccept,
+    handleRecipeCancel,
   } = useRecipeManager(messages, location.state);
 
   // Reset recipe usage tracking when recipe changes
   useEffect(() => {
-    if (recipeConfig?.title !== currentRecipeTitle) {
-      setCurrentRecipeTitle(recipeConfig?.title || null);
-      setHasStartedUsingRecipe(false);
+    const previousTitle = currentRecipeTitle;
+    const newTitle = recipeConfig?.title || null;
+    const hasRecipeChanged = newTitle !== currentRecipeTitle;
 
-      // Clear existing messages when a new recipe is loaded
-      if (recipeConfig?.title && recipeConfig.title !== currentRecipeTitle) {
+    if (hasRecipeChanged) {
+      setCurrentRecipeTitle(newTitle);
+
+      const isSwitchingBetweenRecipes = previousTitle && newTitle;
+      const isInitialRecipeLoad = !previousTitle && newTitle && messages.length === 0;
+      const hasExistingConversation = newTitle && messages.length > 0;
+
+      if (isSwitchingBetweenRecipes) {
+        console.log('Switching from recipe:', previousTitle, 'to:', newTitle);
+        setHasStartedUsingRecipe(false);
         setMessages([]);
         setAncestorMessages([]);
+      } else if (isInitialRecipeLoad) {
+        setHasStartedUsingRecipe(false);
+      } else if (hasExistingConversation) {
+        setHasStartedUsingRecipe(true);
       }
     }
-  }, [recipeConfig?.title, currentRecipeTitle, setMessages, setAncestorMessages]);
+  }, [recipeConfig?.title, currentRecipeTitle, messages.length, setMessages, setAncestorMessages]);
 
   // Handle recipe auto-execution
   useEffect(() => {
-    handleAutoExecution(append, isLoading);
-  }, [handleAutoExecution, append, isLoading]);
+    const isProcessingResponse =
+      chatState !== ChatState.Idle && chatState !== ChatState.WaitingForUserInput;
+    handleAutoExecution(append, isProcessingResponse);
+  }, [handleAutoExecution, append, chatState]);
 
   // Use shared session continuation
   const { createNewSessionIfNeeded } = useSessionContinuation({
@@ -237,7 +255,6 @@ function BaseChatContent({
   });
 
   useEffect(() => {
-    // Log all messages when the component first mounts
     window.electron.logInfo(
       'Initial messages when resuming session: ' + JSON.stringify(chat.messages, null, 2)
     );
@@ -300,11 +317,15 @@ function BaseChatContent({
   };
   // Callback to handle scroll to bottom from ProgressiveMessageList
   const handleScrollToBottom = useCallback(() => {
-    setTimeout(() => {
-      if (scrollRef.current?.scrollToBottom) {
-        scrollRef.current.scrollToBottom();
-      }
-    }, 100);
+    // Only auto-scroll if user is not actively typing
+    const isUserTyping = document.activeElement?.id === 'dynamic-textarea';
+    if (!isUserTyping) {
+      setTimeout(() => {
+        if (scrollRef.current?.scrollToBottom) {
+          scrollRef.current.scrollToBottom();
+        }
+      }, 100);
+    }
   }, []);
 
   return (
@@ -353,20 +374,20 @@ function BaseChatContent({
             {/* Custom content before messages */}
             {renderBeforeMessages && renderBeforeMessages()}
 
-            {/* Messages or Splash or Popular Topics */}
+            {/* Messages or RecipeActivities or Popular Topics */}
             {
               // Check if we should show splash instead of messages
               (() => {
-                // Show splash if we have a recipe and user hasn't started using it yet
+                // Show splash if we have a recipe and user hasn't started using it yet, and recipe has been accepted
                 const shouldShowSplash =
-                  recipeConfig && !hasStartedUsingRecipe && !suppressEmptyState;
+                  recipeConfig && recipeAccepted && !hasStartedUsingRecipe && !suppressEmptyState;
 
                 return shouldShowSplash;
               })() ? (
                 <>
-                  {/* Show Splash when we have a recipe config and user hasn't started using it */}
+                  {/* Show RecipeActivities when we have a recipe config and user hasn't started using it */}
                   {recipeConfig ? (
-                    <Splash
+                    <RecipeActivities
                       append={(text: string) => appendWithTracking(text)}
                       activities={
                         Array.isArray(recipeConfig.activities) ? recipeConfig.activities : null
@@ -378,7 +399,8 @@ function BaseChatContent({
                     <PopularChatTopics append={(text: string) => appendWithTracking(text)} />
                   ) : null}
                 </>
-              ) : filteredMessages.length > 0 || (recipeConfig && hasStartedUsingRecipe) ? (
+              ) : filteredMessages.length > 0 ||
+                (recipeConfig && recipeAccepted && hasStartedUsingRecipe) ? (
                 <>
                   {disableSearch ? (
                     // Render messages without SearchView wrapper when search is disabled
@@ -393,7 +415,7 @@ function BaseChatContent({
                       }}
                       isUserMessage={isUserMessage}
                       onScrollToBottom={handleScrollToBottom}
-                      isStreamingMessage={isLoading}
+                      isStreamingMessage={chatState !== ChatState.Idle}
                     />
                   ) : (
                     // Render messages with SearchView wrapper when search is enabled
@@ -409,33 +431,72 @@ function BaseChatContent({
                         }}
                         isUserMessage={isUserMessage}
                         onScrollToBottom={handleScrollToBottom}
-                        isStreamingMessage={isLoading}
+                        isStreamingMessage={chatState !== ChatState.Idle}
                       />
                     </SearchView>
                   )}
 
-                  {error && (
-                    <div className="flex flex-col items-center justify-center p-4">
-                      <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-3 rounded-lg mb-2">
-                        {error.message || 'Honk! Goose experienced an error while responding'}
-                      </div>
-                      <div
-                        className="px-3 py-2 mt-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
-                        onClick={async () => {
-                          // Find the last user message
-                          const lastUserMessage = messages.reduceRight(
-                            (found, m) => found || (m.role === 'user' ? m : null),
-                            null as Message | null
-                          );
-                          if (lastUserMessage) {
-                            append(lastUserMessage);
-                          }
-                        }}
-                      >
-                        Retry Last Message
-                      </div>
-                    </div>
-                  )}
+                  {error &&
+                    !(error as Error & { isTokenLimitError?: boolean }).isTokenLimitError && (
+                      <>
+                        <div className="flex flex-col items-center justify-center p-4">
+                          <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-3 rounded-lg mb-2">
+                            {error.message || 'Honk! Goose experienced an error while responding'}
+                          </div>
+
+                          {/* Action buttons for non-token-limit errors */}
+                          <div className="flex gap-2 mt-2">
+                            <div
+                              className="px-3 py-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
+                              onClick={async () => {
+                                // Create a contextLengthExceeded message similar to token limit errors
+                                const contextMessage: Message = {
+                                  id: `context-${Date.now()}`,
+                                  role: 'assistant',
+                                  created: Math.floor(Date.now() / 1000),
+                                  content: [
+                                    {
+                                      type: 'contextLengthExceeded',
+                                      msg: 'Summarization requested due to error. Creating summary to help resolve the issue.',
+                                    },
+                                  ],
+                                  display: true,
+                                  sendToLLM: false,
+                                };
+
+                                // Add the context message to trigger ContextHandler
+                                const updatedMessages = [...messages, contextMessage];
+                                setMessages(updatedMessages);
+
+                                // Clear the error state since we're handling it with summarization
+                                clearError();
+                              }}
+                            >
+                              Summarize Conversation
+                            </div>
+                            <div
+                              className="px-3 py-2 text-center whitespace-nowrap cursor-pointer text-textStandard border border-borderSubtle hover:bg-bgSubtle rounded-full inline-block transition-all duration-150"
+                              onClick={async () => {
+                                // Find the last user message
+                                const lastUserMessage = messages.reduceRight(
+                                  (found, m) => found || (m.role === 'user' ? m : null),
+                                  null as Message | null
+                                );
+                                if (lastUserMessage) {
+                                  append(lastUserMessage);
+                                }
+                              }}
+                            >
+                              Retry Last Message
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                  {/* Token limit errors should be handled by ContextHandler, not shown here */}
+                  {error &&
+                    (error as Error & { isTokenLimitError?: boolean }).isTokenLimitError && <></>}
                   <div className="block h-8" />
                 </>
               ) : showPopularTopics ? (
@@ -449,9 +510,12 @@ function BaseChatContent({
           </ScrollArea>
 
           {/* Fixed loading indicator at bottom left of chat container */}
-          {isLoading && (
+          {chatState !== ChatState.Idle && (
             <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
-              <LoadingGoose message={isLoadingSummary ? 'summarizing conversation…' : undefined} />
+              <LoadingGoose
+                message={isLoadingSummary ? 'summarizing conversation…' : undefined}
+                chatState={chatState}
+              />
             </div>
           )}
         </div>
@@ -461,10 +525,10 @@ function BaseChatContent({
         >
           <ChatInput
             handleSubmit={handleSubmit}
-            isLoading={isLoading}
+            chatState={chatState}
             onStop={onStopGoose}
             commandHistory={commandHistory}
-            initialValue={_input || initialPrompt}
+            initialValue={_input || ''}
             setView={setView}
             numTokens={sessionTokenCount}
             inputTokens={sessionInputTokens || localInputTokens}
@@ -477,6 +541,8 @@ function BaseChatContent({
             sessionCosts={sessionCosts}
             setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
             recipeConfig={recipeConfig}
+            recipeAccepted={recipeAccepted}
+            initialPrompt={initialPrompt}
             {...customChatInputProps}
           />
         </div>
@@ -491,6 +557,27 @@ function BaseChatContent({
         }}
         summaryContent={summaryContent}
       />
+
+      {/* Recipe Warning Modal */}
+      <RecipeWarningModal
+        isOpen={isRecipeWarningModalOpen}
+        onConfirm={handleRecipeAccept}
+        onCancel={handleRecipeCancel}
+        recipeDetails={{
+          title: recipeConfig?.title,
+          description: recipeConfig?.description,
+          instructions: recipeConfig?.instructions || undefined,
+        }}
+      />
+
+      {/* Recipe Parameter Modal */}
+      {isParameterModalOpen && recipeConfig?.parameters && (
+        <ParameterInputModal
+          parameters={recipeConfig.parameters}
+          onSubmit={handleParameterSubmit}
+          onClose={() => setIsParameterModalOpen(false)}
+        />
+      )}
 
       {/* Recipe Error Modal */}
       {recipeError && (

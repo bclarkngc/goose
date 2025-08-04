@@ -10,9 +10,10 @@ use super::errors::ProviderError;
 use super::formats::snowflake::{create_request, get_usage, response_to_message};
 use super::utils::{get_model, ImageFormat};
 use crate::config::ConfigError;
+use crate::impl_provider_default;
 use crate::message::Message;
 use crate::model::ModelConfig;
-use mcp_core::tool::Tool;
+use rmcp::model::Tool;
 use url::Url;
 
 pub const SNOWFLAKE_DEFAULT_MODEL: &str = "claude-3-7-sonnet";
@@ -42,12 +43,7 @@ pub struct SnowflakeProvider {
     image_format: ImageFormat,
 }
 
-impl Default for SnowflakeProvider {
-    fn default() -> Self {
-        let model = ModelConfig::new(SnowflakeProvider::metadata().default_model);
-        SnowflakeProvider::from_env(model).expect("Failed to initialize Snowflake provider")
-    }
-}
+impl_provider_default!(SnowflakeProvider);
 
 impl SnowflakeProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
@@ -108,7 +104,7 @@ impl SnowflakeProvider {
         }
     }
 
-    async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
+    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
         let base_url_str =
             if !self.host.starts_with("https://") && !self.host.starts_with("http://") {
                 format!("https://{}", self.host)
@@ -318,7 +314,7 @@ impl SnowflakeProvider {
                     .unwrap_or_else(|| "Invalid credentials".to_string());
 
                 Err(ProviderError::Authentication(format!(
-                    "Authentication failed. Please check your SNOWFLAKE_TOKEN and SNOWFLAKE_HOST configuration. Error: {}", 
+                    "Authentication failed. Please check your SNOWFLAKE_TOKEN and SNOWFLAKE_HOST configuration. Error: {}",
                     error_msg
                 )))
             }
@@ -426,10 +422,10 @@ impl Provider for SnowflakeProvider {
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let payload = create_request(&self.model, system, messages, tools)?;
 
-        let response = self.post(payload.clone()).await?;
+        let response = self.post(&payload).await?;
 
         // Parse response
-        let message = response_to_message(response.clone())?;
+        let message = response_to_message(&response)?;
         let usage = get_usage(&response)?;
         let model = get_model(&response);
         super::utils::emit_debug_trace(&self.model, &payload, &response, &usage);

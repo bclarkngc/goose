@@ -6,18 +6,18 @@ use async_trait::async_trait;
 use aws_config;
 use aws_sdk_bedrockruntime::config::ProvideCredentials;
 use aws_sdk_sagemakerruntime::Client as SageMakerClient;
-use mcp_core::Tool;
+use rmcp::model::Tool;
 use serde_json::{json, Value};
 use tokio::time::sleep;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::utils::emit_debug_trace;
+use crate::impl_provider_default;
 use crate::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use chrono::Utc;
-use mcp_core::content::TextContent;
-use mcp_core::role::Role;
+use rmcp::model::Role;
 
 pub const SAGEMAKER_TGI_DOC_LINK: &str =
     "https://docs.aws.amazon.com/sagemaker/latest/dg/realtime-endpoints.html";
@@ -206,10 +206,7 @@ impl SageMakerTgiProvider {
         Ok(Message::new(
             Role::Assistant,
             Utc::now().timestamp(),
-            vec![MessageContent::Text(TextContent {
-                text: clean_text,
-                annotations: None,
-            })],
+            vec![MessageContent::text(clean_text)],
         ))
     }
 
@@ -258,12 +255,7 @@ impl SageMakerTgiProvider {
     }
 }
 
-impl Default for SageMakerTgiProvider {
-    fn default() -> Self {
-        let model = ModelConfig::new(SageMakerTgiProvider::metadata().default_model);
-        SageMakerTgiProvider::from_env(model).expect("Failed to initialize SageMaker TGI provider")
-    }
-}
+impl_provider_default!(SageMakerTgiProvider);
 
 #[async_trait]
 impl Provider for SageMakerTgiProvider {

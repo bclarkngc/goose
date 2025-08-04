@@ -3,22 +3,14 @@ import { FolderDot } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/Tooltip';
 
 interface DirSwitcherProps {
-  hasMessages?: boolean;
   className?: string;
 }
 
-export const DirSwitcher: React.FC<DirSwitcherProps> = ({
-  hasMessages = false,
-  className = '',
-}) => {
+export const DirSwitcher: React.FC<DirSwitcherProps> = ({ className = '' }) => {
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
 
   const handleDirectoryChange = async () => {
-    if (hasMessages) {
-      window.electron.directoryChooser();
-    } else {
-      window.electron.directoryChooser(true);
-    }
+    window.electron.directoryChooser(true);
   };
 
   return (
@@ -35,7 +27,7 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({
             </div>
           </button>
         </TooltipTrigger>
-        <TooltipContent className="max-w-96 overflow-auto scrollbar-thin" side="top">
+        <TooltipContent side="top">
           {window.appConfig.get('GOOSE_WORKING_DIR') as string}
         </TooltipContent>
       </Tooltip>

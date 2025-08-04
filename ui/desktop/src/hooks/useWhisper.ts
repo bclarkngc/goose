@@ -1,7 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useConfig } from '../components/ConfigContext';
-import { getApiUrl, getSecretKey } from '../config';
+import { getApiUrl } from '../config';
 import { useDictationSettings } from './useDictationSettings';
+import { safeJsonParse } from '../utils/jsonUtils';
 
 interface UseWhisperOptions {
   onTranscription?: (text: string) => void;
@@ -116,7 +117,7 @@ export const useWhisper = ({ onTranscription, onError, onSizeWarning }: UseWhisp
         let endpoint = '';
         let headers: Record<string, string> = {
           'Content-Type': 'application/json',
-          'X-Secret-Key': getSecretKey(),
+          'X-Secret-Key': await window.electron.getSecretKey(),
         };
         let body: Record<string, string> = {
           audio: base64Audio,
@@ -151,13 +152,18 @@ export const useWhisper = ({ onTranscription, onError, onSizeWarning }: UseWhisp
           } else if (response.status === 402) {
             throw new Error('API quota exceeded. Please check your account limits.');
           }
-          const errorData = await response
-            .json()
-            .catch(() => ({ error: { message: 'Transcription failed' } }));
+          const errorData = await safeJsonParse<{
+            error: { message: string };
+          }>(response, 'Failed to parse error response').catch(() => ({
+            error: { message: 'Transcription failed' },
+          }));
           throw new Error(errorData.error?.message || 'Transcription failed');
         }
 
-        const data = await response.json();
+        const data = await safeJsonParse<{ text: string }>(
+          response,
+          'Failed to parse transcription response'
+        );
         if (data.text) {
           onTranscription?.(data.text);
         }
@@ -193,11 +199,27 @@ export const useWhisper = ({ onTranscription, onError, onSizeWarning }: UseWhisp
     }
 
     // Close audio context
-    if (audioContext) {
-      audioContext.close();
+    if (audioContext && audioContext.state !== 'closed') {
+      audioContext.close().catch(console.error);
       setAudioContext(null);
       setAnalyser(null);
     }
+  }, [audioContext]);
+
+  // Cleanup effect to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      // Cleanup on unmount
+      if (durationIntervalRef.current) {
+        clearInterval(durationIntervalRef.current);
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      }
+      if (audioContext && audioContext.state !== 'closed') {
+        audioContext.close().catch(console.error);
+      }
+    };
   }, [audioContext]);
 
   const startRecording = useCallback(async () => {

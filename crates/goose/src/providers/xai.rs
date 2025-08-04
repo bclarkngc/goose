@@ -1,4 +1,5 @@
 use super::errors::ProviderError;
+use crate::impl_provider_default;
 use crate::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
@@ -6,8 +7,8 @@ use crate::providers::formats::openai::{create_request, get_usage, response_to_m
 use crate::providers::utils::get_model;
 use anyhow::Result;
 use async_trait::async_trait;
-use mcp_core::Tool;
 use reqwest::{Client, StatusCode};
+use rmcp::model::Tool;
 use serde_json::Value;
 use std::time::Duration;
 use url::Url;
@@ -45,12 +46,7 @@ pub struct XaiProvider {
     model: ModelConfig,
 }
 
-impl Default for XaiProvider {
-    fn default() -> Self {
-        let model = ModelConfig::new(XaiProvider::metadata().default_model);
-        XaiProvider::from_env(model).expect("Failed to initialize xAI provider")
-    }
-}
+impl_provider_default!(XaiProvider);
 
 impl XaiProvider {
     pub fn from_env(model: ModelConfig) -> Result<Self> {
@@ -72,7 +68,7 @@ impl XaiProvider {
         })
     }
 
-    async fn post(&self, payload: Value) -> anyhow::Result<Value, ProviderError> {
+    async fn post(&self, payload: &Value) -> anyhow::Result<Value, ProviderError> {
         // Ensure the host ends with a slash for proper URL joining
         let host = if self.host.ends_with('/') {
             self.host.clone()
@@ -163,9 +159,9 @@ impl Provider for XaiProvider {
             &super::utils::ImageFormat::OpenAi,
         )?;
 
-        let response = self.post(payload.clone()).await?;
+        let response = self.post(&payload).await?;
 
-        let message = response_to_message(response.clone())?;
+        let message = response_to_message(&response)?;
         let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
             tracing::debug!("Failed to get usage data");
             Usage::default()

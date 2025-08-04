@@ -18,10 +18,11 @@ use crate::providers::formats::gcpvertexai::{
     ModelProvider, RequestContext,
 };
 
+use crate::impl_provider_default;
 use crate::providers::formats::gcpvertexai::GcpLocation::Iowa;
 use crate::providers::gcpauth::GcpAuth;
 use crate::providers::utils::emit_debug_trace;
-use mcp_core::tool::Tool;
+use rmcp::model::Tool;
 
 /// Base URL for GCP Vertex AI documentation
 const GCP_VERTEX_AI_DOC_URL: &str = "https://cloud.google.com/vertex-ai";
@@ -281,14 +282,14 @@ impl GcpVertexAIProvider {
     ) -> Result<Url, GcpVertexAIError> {
         // Create host URL for the specified location
         let host_url = if self.location == location {
-            self.host.clone()
+            &self.host
         } else {
             // Only allocate a new string if location differs
-            self.host.replace(&self.location, location)
+            &self.host.replace(&self.location, location)
         };
 
         let base_url =
-            Url::parse(&host_url).map_err(|e| GcpVertexAIError::InvalidUrl(e.to_string()))?;
+            Url::parse(host_url).map_err(|e| GcpVertexAIError::InvalidUrl(e.to_string()))?;
 
         // Determine endpoint based on provider type
         let endpoint = match provider {
@@ -470,10 +471,14 @@ impl GcpVertexAIProvider {
     /// # Arguments
     /// * `payload` - The request payload to send
     /// * `context` - Request context containing model information
-    async fn post(&self, payload: Value, context: &RequestContext) -> Result<Value, ProviderError> {
+    async fn post(
+        &self,
+        payload: &Value,
+        context: &RequestContext,
+    ) -> Result<Value, ProviderError> {
         // Try with user-specified location first
         let result = self
-            .post_with_location(&payload, context, &self.location)
+            .post_with_location(payload, context, &self.location)
             .await;
 
         // If location is already the known location for the model or request succeeded, return result
@@ -492,7 +497,7 @@ impl GcpVertexAIProvider {
                     "Trying known location {known_location} for {model_name} instead of {configured_location}: {msg}"
                 );
 
-                self.post_with_location(&payload, context, &known_location)
+                self.post_with_location(payload, context, &known_location)
                     .await
             }
             // For any other error, return the original result
@@ -501,12 +506,7 @@ impl GcpVertexAIProvider {
     }
 }
 
-impl Default for GcpVertexAIProvider {
-    fn default() -> Self {
-        let model = ModelConfig::new(Self::metadata().default_model);
-        Self::new(model).expect("Failed to initialize VertexAI provider")
-    }
-}
+impl_provider_default!(GcpVertexAIProvider);
 
 #[async_trait]
 impl Provider for GcpVertexAIProvider {
@@ -609,7 +609,7 @@ impl Provider for GcpVertexAIProvider {
         let (request, context) = create_request(&self.model, system, messages, tools)?;
 
         // Send request and process response
-        let response = self.post(request.clone(), &context).await?;
+        let response = self.post(&request, &context).await?;
         let usage = get_usage(&response, &context)?;
 
         emit_debug_trace(&self.model, &request, &response, &usage);
@@ -707,7 +707,7 @@ mod tests {
     fn test_url_construction() {
         use url::Url;
 
-        let model_config = ModelConfig::new("claude-3-5-sonnet-v2@20241022".to_string());
+        let model_config = ModelConfig::new_or_fail("claude-3-5-sonnet-v2@20241022");
         let context = RequestContext::new(&model_config.model_name).unwrap();
         let api_model_id = context.model.to_string();
 

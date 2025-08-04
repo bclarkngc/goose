@@ -1,20 +1,20 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
+use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
+use super::errors::ProviderError;
+use crate::impl_provider_default;
+use crate::message::Message;
+use crate::model::ModelConfig;
+use crate::providers::utils::emit_debug_trace;
 use anyhow::Result;
 use async_trait::async_trait;
 use aws_sdk_bedrockruntime::config::ProvideCredentials;
 use aws_sdk_bedrockruntime::operation::converse::ConverseError;
 use aws_sdk_bedrockruntime::{types as bedrock, Client};
-use mcp_core::Tool;
+use rmcp::model::Tool;
 use serde_json::Value;
 use tokio::time::sleep;
-
-use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
-use super::errors::ProviderError;
-use crate::message::Message;
-use crate::model::ModelConfig;
-use crate::providers::utils::emit_debug_trace;
 
 // Import the migrated helper functions from providers/formats/bedrock.rs
 use super::formats::bedrock::{
@@ -70,12 +70,7 @@ impl BedrockProvider {
     }
 }
 
-impl Default for BedrockProvider {
-    fn default() -> Self {
-        let model = ModelConfig::new(BedrockProvider::metadata().default_model);
-        BedrockProvider::from_env(model).expect("Failed to initialize Bedrock provider")
-    }
-}
+impl_provider_default!(BedrockProvider);
 
 #[async_trait]
 impl Provider for BedrockProvider {

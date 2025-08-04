@@ -47,9 +47,9 @@ export default function ProgressiveMessageList({
   appendMessage = () => {},
   isUserMessage,
   onScrollToBottom,
-  batchSize = 15, // Render 15 messages per batch (reduced for better UX)
-  batchDelay = 30, // 30ms delay between batches (faster)
-  showLoadingThreshold = 30, // Only show progressive loading for 30+ messages (lower threshold)
+  batchSize = 20,
+  batchDelay = 20,
+  showLoadingThreshold = 50,
   renderMessage, // Custom render function
   isStreamingMessage = false, // Whether messages are currently being streamed
 }: ProgressiveMessageListProps) {
@@ -62,6 +62,8 @@ export default function ProgressiveMessageList({
   const [isLoading, setIsLoading] = useState(() => messages.length > showLoadingThreshold);
   const timeoutRef = useRef<number | null>(null);
   const mountedRef = useRef(true);
+  const hasOnlyToolResponses = (message: Message) =>
+    message.content.every((c) => c.type === 'toolResponse');
 
   // Try to use context manager, but don't require it for session history
   let hasContextHandlerContent: ((message: Message) => boolean) | undefined;
@@ -199,7 +201,7 @@ export default function ProgressiveMessageList({
                     }}
                   />
                 ) : (
-                  <UserMessage message={message} />
+                  !hasOnlyToolResponses(message) && <UserMessage message={message} />
                 )}
               </>
             ) : (

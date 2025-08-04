@@ -1,9 +1,6 @@
 import Electron, { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { Recipe } from './recipe';
 
-// RecipeConfig is used for window creation and should match Recipe interface
-type RecipeConfig = Recipe;
-
 interface NotificationData {
   title: string;
   body: string;
@@ -55,7 +52,7 @@ type ElectronAPI = {
     dir?: string,
     version?: string,
     resumeSessionId?: string,
-    recipeConfig?: RecipeConfig,
+    recipe?: Recipe,
     viewType?: string
   ) => void;
   logInfo: (txt: string) => void;
@@ -65,7 +62,7 @@ type ElectronAPI = {
   fetchMetadata: (url: string) => Promise<string>;
   reloadApp: () => void;
   checkForOllama: () => Promise<boolean>;
-  selectFileOrDirectory: () => Promise<string | null>;
+  selectFileOrDirectory: (defaultPath?: string) => Promise<string | null>;
   startPowerSaveBlocker: () => Promise<number>;
   stopPowerSaveBlocker: () => Promise<void>;
   getBinaryPath: (binaryName: string) => Promise<string>;
@@ -80,12 +77,15 @@ type ElectronAPI = {
   setDockIcon: (show: boolean) => Promise<boolean>;
   getDockIconState: () => Promise<boolean>;
   getSettings: () => Promise<unknown | null>;
+  getSecretKey: () => Promise<string>;
   setSchedulingEngine: (engine: string) => Promise<boolean>;
   setQuitConfirmation: (show: boolean) => Promise<boolean>;
   getQuitConfirmationState: () => Promise<boolean>;
   setWakelock: (enable: boolean) => Promise<boolean>;
   getWakelockState: () => Promise<boolean>;
   openNotificationsSettings: () => Promise<boolean>;
+  onMouseBackButtonClicked: (callback: () => void) => void;
+  offMouseBackButtonClicked: (callback: () => void) => void;
   on: (
     channel: string,
     callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void
@@ -108,6 +108,10 @@ type ElectronAPI = {
   restartApp: () => void;
   onUpdaterEvent: (callback: (event: UpdaterEvent) => void) => void;
   getUpdateState: () => Promise<{ updateAvailable: boolean; latestVersion?: string } | null>;
+  // Recipe warning functions
+  closeWindow: () => void;
+  hasAcceptedRecipeBefore: (recipeConfig: Recipe) => Promise<boolean>;
+  recordRecipeHash: (recipeConfig: Recipe) => Promise<boolean>;
 };
 
 type AppConfigAPI = {
@@ -122,9 +126,11 @@ const electronAPI: ElectronAPI = {
     // Add fallback to localStorage if config from preload is empty or missing
     if (!config || Object.keys(config).length === 0) {
       try {
-        const storedConfig = localStorage.getItem('gooseConfig');
-        if (storedConfig) {
-          return JSON.parse(storedConfig);
+        if (window.localStorage) {
+          const storedConfig = localStorage.getItem('gooseConfig');
+          if (storedConfig) {
+            return JSON.parse(storedConfig);
+          }
         }
       } catch (e) {
         console.warn('Failed to parse stored config from localStorage:', e);
@@ -139,18 +145,10 @@ const electronAPI: ElectronAPI = {
     dir?: string,
     version?: string,
     resumeSessionId?: string,
-    recipeConfig?: RecipeConfig,
+    recipe?: Recipe,
     viewType?: string
   ) =>
-    ipcRenderer.send(
-      'create-chat-window',
-      query,
-      dir,
-      version,
-      resumeSessionId,
-      recipeConfig,
-      viewType
-    ),
+    ipcRenderer.send('create-chat-window', query, dir, version, resumeSessionId, recipe, viewType),
   logInfo: (txt: string) => ipcRenderer.send('logInfo', txt),
   showNotification: (data: NotificationData) => ipcRenderer.send('notify', data),
   showMessageBox: (options: MessageBoxOptions) => ipcRenderer.invoke('show-message-box', options),
@@ -158,7 +156,8 @@ const electronAPI: ElectronAPI = {
   fetchMetadata: (url: string) => ipcRenderer.invoke('fetch-metadata', url),
   reloadApp: () => ipcRenderer.send('reload-app'),
   checkForOllama: () => ipcRenderer.invoke('check-ollama'),
-  selectFileOrDirectory: () => ipcRenderer.invoke('select-file-or-directory'),
+  selectFileOrDirectory: (defaultPath?: string) =>
+    ipcRenderer.invoke('select-file-or-directory', defaultPath),
   startPowerSaveBlocker: () => ipcRenderer.invoke('start-power-save-blocker'),
   stopPowerSaveBlocker: () => ipcRenderer.invoke('stop-power-save-blocker'),
   getBinaryPath: (binaryName: string) => ipcRenderer.invoke('get-binary-path', binaryName),
@@ -175,12 +174,22 @@ const electronAPI: ElectronAPI = {
   setDockIcon: (show: boolean) => ipcRenderer.invoke('set-dock-icon', show),
   getDockIconState: () => ipcRenderer.invoke('get-dock-icon-state'),
   getSettings: () => ipcRenderer.invoke('get-settings'),
+  getSecretKey: () => ipcRenderer.invoke('get-secret-key'),
   setSchedulingEngine: (engine: string) => ipcRenderer.invoke('set-scheduling-engine', engine),
   setQuitConfirmation: (show: boolean) => ipcRenderer.invoke('set-quit-confirmation', show),
   getQuitConfirmationState: () => ipcRenderer.invoke('get-quit-confirmation-state'),
   setWakelock: (enable: boolean) => ipcRenderer.invoke('set-wakelock', enable),
   getWakelockState: () => ipcRenderer.invoke('get-wakelock-state'),
   openNotificationsSettings: () => ipcRenderer.invoke('open-notifications-settings'),
+  onMouseBackButtonClicked: (callback: () => void) => {
+    // Wrapper that ignores the event parameter.
+    const wrappedCallback = (_event: Electron.IpcRendererEvent) => callback();
+    ipcRenderer.on('mouse-back-button-clicked', wrappedCallback);
+    return wrappedCallback;
+  },
+  offMouseBackButtonClicked: (callback: () => void) => {
+    ipcRenderer.removeListener('mouse-back-button-clicked', callback);
+  },
   on: (
     channel: string,
     callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void
@@ -226,12 +235,22 @@ const electronAPI: ElectronAPI = {
   getUpdateState: (): Promise<{ updateAvailable: boolean; latestVersion?: string } | null> => {
     return ipcRenderer.invoke('get-update-state');
   },
+  closeWindow: () => ipcRenderer.send('close-window'),
+  hasAcceptedRecipeBefore: (recipeConfig: Recipe) =>
+    ipcRenderer.invoke('has-accepted-recipe-before', recipeConfig),
+  recordRecipeHash: (recipeConfig: Recipe) =>
+    ipcRenderer.invoke('record-recipe-hash', recipeConfig),
 };
 
 const appConfigAPI: AppConfigAPI = {
   get: (key: string) => config[key],
   getAll: () => config,
 };
+
+// Listen for recipe updates and update config directly
+ipcRenderer.on('recipe-decoded', (_, decodedRecipe) => {
+  config.recipe = decodedRecipe;
+});
 
 // Expose the APIs
 contextBridge.exposeInMainWorld('electron', electronAPI);
